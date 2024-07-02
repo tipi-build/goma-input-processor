@@ -1,0 +1,445 @@
+# Copyright 2019 The Goma Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//build/config/clang/clang.gni")
+
+config("abseil_config") {
+  include_dirs = [ "src" ]
+
+  if (is_clang && clang_base_path == default_clang_base_path) {
+    # Only apply this for chromium clang build.
+    cflags = [ "-Wno-implicit-int-float-conversion" ]
+  }
+  if (is_win_gcc) {
+    # Used by "src/absl/debugging/symbolize_win32.inc"
+    libs = [ "dbghelp" ]
+  }
+}
+
+config("abseil_config_internal") {
+  if (is_mac) {
+    # Building absl/time/internal/cctz needs Foundation lib
+    # https://chromium.googlesource.com/chromium/src/+/5a043322a1bc2d3566eb5ad8c8696f8b0594c156/third_party/abseil-cpp/absl/time/internal/cctz/BUILD.gn#72
+    frameworks = [ "Foundation.framework" ]
+  }
+}
+
+source_set("abseil_headers_internal") {
+  # In abseil directory,
+  # $ find src | egrep '.*internal.*\.(h|inc)$' | \
+  #       grep -v '_test' | \
+  #       grep -v 'test_util' | \
+  #       grep -v 'nonprod' | \
+  #       grep -v 'benchmark.cc' | \
+  #       grep -v 'print_hash_of.cc' | \
+  #       grep -v 'absl/flags/' | \
+  #       grep -v 'absl/random/' | \
+  #       grep -v 'src/ci/' | \
+  #       sed -e 's/^/"/' -e 's/$/",/' | sort
+  sources = [
+    "src/absl/base/internal/atomic_hook.h",
+    "src/absl/base/internal/cycleclock.h",
+    "src/absl/base/internal/direct_mmap.h",
+    "src/absl/base/internal/dynamic_annotations.h",
+    "src/absl/base/internal/endian.h",
+    "src/absl/base/internal/errno_saver.h",
+    "src/absl/base/internal/fast_type_id.h",
+    "src/absl/base/internal/hide_ptr.h",
+    "src/absl/base/internal/identity.h",
+    "src/absl/base/internal/inline_variable.h",
+    "src/absl/base/internal/invoke.h",
+    "src/absl/base/internal/low_level_alloc.h",
+    "src/absl/base/internal/low_level_scheduling.h",
+    "src/absl/base/internal/per_thread_tls.h",
+    "src/absl/base/internal/pretty_function.h",
+    "src/absl/base/internal/raw_logging.h",
+    "src/absl/base/internal/scheduling_mode.h",
+    "src/absl/base/internal/scoped_set_env.h",
+    "src/absl/base/internal/spinlock.h",
+    "src/absl/base/internal/spinlock_akaros.inc",
+    "src/absl/base/internal/spinlock_linux.inc",
+    "src/absl/base/internal/spinlock_posix.inc",
+    "src/absl/base/internal/spinlock_wait.h",
+    "src/absl/base/internal/spinlock_win32.inc",
+    "src/absl/base/internal/strerror.h",
+    "src/absl/base/internal/sysinfo.h",
+    "src/absl/base/internal/thread_annotations.h",
+    "src/absl/base/internal/thread_identity.h",
+    "src/absl/base/internal/throw_delegate.h",
+    "src/absl/base/internal/tsan_mutex_interface.h",
+    "src/absl/base/internal/unaligned_access.h",
+    "src/absl/base/internal/unscaledcycleclock.h",
+    "src/absl/cleanup/internal/cleanup.h",
+    "src/absl/container/internal/btree.h",
+    "src/absl/container/internal/btree_container.h",
+    "src/absl/container/internal/common.h",
+    "src/absl/container/internal/compressed_tuple.h",
+    "src/absl/container/internal/container_memory.h",
+    "src/absl/container/internal/counting_allocator.h",
+    "src/absl/container/internal/hash_function_defaults.h",
+    "src/absl/container/internal/hash_policy_traits.h",
+    "src/absl/container/internal/hashtable_debug.h",
+    "src/absl/container/internal/hashtable_debug_hooks.h",
+    "src/absl/container/internal/hashtablez_sampler.h",
+    "src/absl/container/internal/inlined_vector.h",
+    "src/absl/container/internal/layout.h",
+    "src/absl/container/internal/raw_hash_map.h",
+    "src/absl/container/internal/raw_hash_set.h",
+    "src/absl/container/internal/test_instance_tracker.h",
+    "src/absl/container/internal/tracked.h",
+    "src/absl/debugging/internal/address_is_readable.h",
+    "src/absl/debugging/internal/demangle.h",
+    "src/absl/debugging/internal/elf_mem_image.h",
+    "src/absl/debugging/internal/examine_stack.h",
+    "src/absl/debugging/internal/stack_consumption.h",
+    "src/absl/debugging/internal/stacktrace_aarch64-inl.inc",
+    "src/absl/debugging/internal/stacktrace_arm-inl.inc",
+    "src/absl/debugging/internal/stacktrace_config.h",
+    "src/absl/debugging/internal/stacktrace_emscripten-inl.inc",
+    "src/absl/debugging/internal/stacktrace_generic-inl.inc",
+    "src/absl/debugging/internal/stacktrace_powerpc-inl.inc",
+    "src/absl/debugging/internal/stacktrace_riscv-inl.inc",
+    "src/absl/debugging/internal/stacktrace_unimplemented-inl.inc",
+    "src/absl/debugging/internal/stacktrace_win32-inl.inc",
+    "src/absl/debugging/internal/stacktrace_x86-inl.inc",
+    "src/absl/debugging/internal/symbolize.h",
+    "src/absl/debugging/internal/vdso_support.h",
+    "src/absl/functional/internal/front_binder.h",
+    "src/absl/functional/internal/function_ref.h",
+    "src/absl/hash/internal/city.h",
+    "src/absl/hash/internal/hash.h",
+    "src/absl/hash/internal/low_level_hash.h",
+    "src/absl/hash/internal/spy_hash_state.h",
+    "src/absl/numeric/internal/bits.h",
+    "src/absl/numeric/internal/representation.h",
+    "src/absl/profiling/internal/exponential_biased.h",
+    "src/absl/profiling/internal/periodic_sampler.h",
+    "src/absl/profiling/internal/sample_recorder.h",
+    "src/absl/status/internal/status_internal.h",
+    "src/absl/status/internal/statusor_internal.h",
+    "src/absl/strings/internal/char_map.h",
+    "src/absl/strings/internal/charconv_bigint.h",
+    "src/absl/strings/internal/charconv_parse.h",
+    "src/absl/strings/internal/cord_internal.h",
+    "src/absl/strings/internal/cord_rep_btree.h",
+    "src/absl/strings/internal/cord_rep_btree_navigator.h",
+    "src/absl/strings/internal/cord_rep_btree_reader.h",
+    "src/absl/strings/internal/cord_rep_consume.h",
+    "src/absl/strings/internal/cord_rep_flat.h",
+    "src/absl/strings/internal/cord_rep_ring.h",
+    "src/absl/strings/internal/cord_rep_ring_reader.h",
+    "src/absl/strings/internal/cordz_functions.h",
+    "src/absl/strings/internal/cordz_handle.h",
+    "src/absl/strings/internal/cordz_info.h",
+    "src/absl/strings/internal/cordz_sample_token.h",
+    "src/absl/strings/internal/cordz_statistics.h",
+    "src/absl/strings/internal/cordz_update_scope.h",
+    "src/absl/strings/internal/cordz_update_tracker.h",
+    "src/absl/strings/internal/escaping.h",
+    "src/absl/strings/internal/memutil.h",
+    "src/absl/strings/internal/ostringstream.h",
+    "src/absl/strings/internal/pow10_helper.h",
+    "src/absl/strings/internal/resize_uninitialized.h",
+    "src/absl/strings/internal/stl_type_traits.h",
+    "src/absl/strings/internal/str_format/arg.h",
+    "src/absl/strings/internal/str_format/bind.h",
+    "src/absl/strings/internal/str_format/checker.h",
+    "src/absl/strings/internal/str_format/extension.h",
+    "src/absl/strings/internal/str_format/float_conversion.h",
+    "src/absl/strings/internal/str_format/output.h",
+    "src/absl/strings/internal/str_format/parser.h",
+    "src/absl/strings/internal/str_join_internal.h",
+    "src/absl/strings/internal/str_split_internal.h",
+    "src/absl/strings/internal/string_constant.h",
+    "src/absl/strings/internal/utf8.h",
+    "src/absl/synchronization/internal/create_thread_identity.h",
+    "src/absl/synchronization/internal/futex.h",
+    "src/absl/synchronization/internal/graphcycles.h",
+    "src/absl/synchronization/internal/kernel_timeout.h",
+    "src/absl/synchronization/internal/per_thread_sem.h",
+    "src/absl/synchronization/internal/thread_pool.h",
+    "src/absl/synchronization/internal/waiter.h",
+    "src/absl/time/internal/cctz/include/cctz/civil_time.h",
+    "src/absl/time/internal/cctz/include/cctz/civil_time_detail.h",
+    "src/absl/time/internal/cctz/include/cctz/time_zone.h",
+    "src/absl/time/internal/cctz/include/cctz/zone_info_source.h",
+    "src/absl/time/internal/cctz/src/time_zone_fixed.h",
+    "src/absl/time/internal/cctz/src/time_zone_if.h",
+    "src/absl/time/internal/cctz/src/time_zone_impl.h",
+    "src/absl/time/internal/cctz/src/time_zone_info.h",
+    "src/absl/time/internal/cctz/src/time_zone_libc.h",
+    "src/absl/time/internal/cctz/src/time_zone_posix.h",
+    "src/absl/time/internal/cctz/src/tzfile.h",
+    "src/absl/time/internal/get_current_time_chrono.inc",
+    "src/absl/time/internal/get_current_time_posix.inc",
+    "src/absl/time/internal/zoneinfo.inc",
+    "src/absl/types/internal/conformance_aliases.h",
+    "src/absl/types/internal/conformance_archetype.h",
+    "src/absl/types/internal/conformance_profile.h",
+    "src/absl/types/internal/optional.h",
+    "src/absl/types/internal/parentheses.h",
+    "src/absl/types/internal/span.h",
+    "src/absl/types/internal/transform_args.h",
+    "src/absl/types/internal/variant.h",
+  ]
+}
+
+source_set("abseil_headers") {
+  # In abseil directory,
+  # $ find src | egrep '\.(h|inc)$' | \
+  #       grep -v '_test' | \
+  #       grep -v 'test_util' | \
+  #       grep -v 'nonprod' | \
+  #       grep -v 'benchmark.cc' | \
+  #       grep -v 'print_hash_of.cc' | \
+  #       grep -v 'absl/flags/' | \
+  #       grep -v 'absl/random/' | \
+  #       grep -v 'src/ci/' | \
+  #       grep -v 'internal' | \
+  #       sed -e 's/^/"/' -e 's/$/",/' | sort
+  sources = [
+    "src/absl/algorithm/algorithm.h",
+    "src/absl/algorithm/container.h",
+    "src/absl/base/attributes.h",
+    "src/absl/base/call_once.h",
+    "src/absl/base/casts.h",
+    "src/absl/base/config.h",
+    "src/absl/base/const_init.h",
+    "src/absl/base/dynamic_annotations.h",
+    "src/absl/base/log_severity.h",
+    "src/absl/base/macros.h",
+    "src/absl/base/optimization.h",
+    "src/absl/base/options.h",
+    "src/absl/base/policy_checks.h",
+    "src/absl/base/port.h",
+    "src/absl/base/thread_annotations.h",
+    "src/absl/cleanup/cleanup.h",
+    "src/absl/container/btree_map.h",
+    "src/absl/container/btree_set.h",
+    "src/absl/container/fixed_array.h",
+    "src/absl/container/flat_hash_map.h",
+    "src/absl/container/flat_hash_set.h",
+    "src/absl/container/inlined_vector.h",
+    "src/absl/container/node_hash_map.h",
+    "src/absl/container/node_hash_set.h",
+    "src/absl/debugging/failure_signal_handler.h",
+    "src/absl/debugging/leak_check.h",
+    "src/absl/debugging/stacktrace.h",
+    "src/absl/debugging/symbolize.h",
+    "src/absl/debugging/symbolize_darwin.inc",
+    "src/absl/debugging/symbolize_elf.inc",
+    "src/absl/debugging/symbolize_emscripten.inc",
+    "src/absl/debugging/symbolize_unimplemented.inc",
+    "src/absl/debugging/symbolize_win32.inc",
+    "src/absl/functional/bind_front.h",
+    "src/absl/functional/function_ref.h",
+    "src/absl/hash/hash.h",
+    "src/absl/memory/memory.h",
+    "src/absl/meta/type_traits.h",
+    "src/absl/numeric/bits.h",
+    "src/absl/numeric/int128.h",
+    "src/absl/numeric/int128_have_intrinsic.inc",
+    "src/absl/numeric/int128_no_intrinsic.inc",
+    "src/absl/status/status.h",
+    "src/absl/status/status_payload_printer.h",
+    "src/absl/status/statusor.h",
+    "src/absl/strings/ascii.h",
+    "src/absl/strings/charconv.h",
+    "src/absl/strings/cord.h",
+    "src/absl/strings/escaping.h",
+    "src/absl/strings/match.h",
+    "src/absl/strings/numbers.h",
+    "src/absl/strings/str_cat.h",
+    "src/absl/strings/str_format.h",
+    "src/absl/strings/str_join.h",
+    "src/absl/strings/str_replace.h",
+    "src/absl/strings/str_split.h",
+    "src/absl/strings/string_view.h",
+    "src/absl/strings/strip.h",
+    "src/absl/strings/substitute.h",
+    "src/absl/synchronization/barrier.h",
+    "src/absl/synchronization/blocking_counter.h",
+    "src/absl/synchronization/mutex.h",
+    "src/absl/synchronization/notification.h",
+    "src/absl/time/civil_time.h",
+    "src/absl/time/clock.h",
+    "src/absl/time/time.h",
+    "src/absl/types/any.h",
+    "src/absl/types/bad_any_cast.h",
+    "src/absl/types/bad_optional_access.h",
+    "src/absl/types/bad_variant_access.h",
+    "src/absl/types/compare.h",
+    "src/absl/types/optional.h",
+    "src/absl/types/span.h",
+    "src/absl/types/variant.h",
+    "src/absl/utility/utility.h",
+  ]
+}
+
+# In abseil directory,
+# $ find src | egrep '.*internal.*\.(cc)$' | \
+#       grep -v '_test' | \
+#       grep -v 'test_util' | \
+#       grep -v 'nonprod' | \
+#       grep -v 'benchmark.cc' | \
+#       grep -v 'print_hash_of.cc' | \
+#       grep -v 'absl/flags/' | \
+#       grep -v 'absl/random/' | \
+#       grep -v 'src/ci/' | \
+#       sed -e 's/^/"/' -e 's/$/",/' | sort
+# Note: a few unnecessary files might be left. You might need to
+# remove it manually. We don't use abseil's flag and random libraries, hence
+# they are filtered out.
+static_library("abseil_internal") {
+  sources = [
+    "src/absl/base/internal/cycleclock.cc",
+    "src/absl/base/internal/low_level_alloc.cc",
+    "src/absl/base/internal/raw_logging.cc",
+    "src/absl/base/internal/scoped_set_env.cc",
+    "src/absl/base/internal/spinlock.cc",
+    "src/absl/base/internal/spinlock_wait.cc",
+    "src/absl/base/internal/strerror.cc",
+    "src/absl/base/internal/sysinfo.cc",
+    "src/absl/base/internal/thread_identity.cc",
+    "src/absl/base/internal/throw_delegate.cc",
+    "src/absl/base/internal/unscaledcycleclock.cc",
+    "src/absl/container/internal/hashtablez_sampler.cc",
+    "src/absl/container/internal/hashtablez_sampler_force_weak_definition.cc",
+    "src/absl/container/internal/raw_hash_set.cc",
+    "src/absl/container/internal/test_instance_tracker.cc",
+    "src/absl/debugging/internal/address_is_readable.cc",
+    "src/absl/debugging/internal/demangle.cc",
+    "src/absl/debugging/internal/elf_mem_image.cc",
+    "src/absl/debugging/internal/examine_stack.cc",
+    "src/absl/debugging/internal/stack_consumption.cc",
+    "src/absl/debugging/internal/vdso_support.cc",
+    "src/absl/hash/internal/city.cc",
+    "src/absl/hash/internal/hash.cc",
+    "src/absl/hash/internal/low_level_hash.cc",
+    "src/absl/profiling/internal/exponential_biased.cc",
+    "src/absl/profiling/internal/periodic_sampler.cc",
+    "src/absl/strings/internal/charconv_bigint.cc",
+    "src/absl/strings/internal/charconv_parse.cc",
+    "src/absl/strings/internal/cord_internal.cc",
+    "src/absl/strings/internal/cord_rep_btree.cc",
+    "src/absl/strings/internal/cord_rep_btree_navigator.cc",
+    "src/absl/strings/internal/cord_rep_btree_reader.cc",
+    "src/absl/strings/internal/cord_rep_consume.cc",
+    "src/absl/strings/internal/cord_rep_ring.cc",
+    "src/absl/strings/internal/cordz_functions.cc",
+    "src/absl/strings/internal/cordz_handle.cc",
+    "src/absl/strings/internal/cordz_info.cc",
+    "src/absl/strings/internal/cordz_sample_token.cc",
+    "src/absl/strings/internal/escaping.cc",
+    "src/absl/strings/internal/memutil.cc",
+    "src/absl/strings/internal/ostringstream.cc",
+    "src/absl/strings/internal/pow10_helper.cc",
+    "src/absl/strings/internal/str_format/arg.cc",
+    "src/absl/strings/internal/str_format/bind.cc",
+    "src/absl/strings/internal/str_format/extension.cc",
+    "src/absl/strings/internal/str_format/float_conversion.cc",
+    "src/absl/strings/internal/str_format/output.cc",
+    "src/absl/strings/internal/str_format/parser.cc",
+    "src/absl/strings/internal/utf8.cc",
+    "src/absl/synchronization/internal/create_thread_identity.cc",
+    "src/absl/synchronization/internal/graphcycles.cc",
+    "src/absl/synchronization/internal/per_thread_sem.cc",
+    "src/absl/synchronization/internal/waiter.cc",
+    "src/absl/time/internal/cctz/src/civil_time_detail.cc",
+    "src/absl/time/internal/cctz/src/time_zone_fixed.cc",
+    "src/absl/time/internal/cctz/src/time_zone_format.cc",
+    "src/absl/time/internal/cctz/src/time_zone_if.cc",
+    "src/absl/time/internal/cctz/src/time_zone_impl.cc",
+    "src/absl/time/internal/cctz/src/time_zone_info.cc",
+    "src/absl/time/internal/cctz/src/time_zone_libc.cc",
+    "src/absl/time/internal/cctz/src/time_zone_lookup.cc",
+    "src/absl/time/internal/cctz/src/time_zone_posix.cc",
+    "src/absl/time/internal/cctz/src/zone_info_source.cc",
+  ]
+  configs -= [ "//build/config/compiler:goma_code" ]
+  configs += [
+    ":abseil_config",
+    ":abseil_config_internal",
+    "//build/config/compiler:no_goma_code",
+  ]
+  deps = [
+    ":abseil_headers",
+    ":abseil_headers_internal",
+  ]
+}
+
+# All libraries combined.
+# TODO: It's better to split libraries like abseil's BUILD files,
+# but for goma use, this would be enough since we don't update abseil
+# frequently.
+static_library("abseil") {
+  # In abseil directory,
+  # $ find src | egrep '\.(cc)$' | \
+  #       grep -v '_test' | \
+  #       grep -v 'test_util' | \
+  #       grep -v 'nonprod' | \
+  #       grep -v 'benchmark.cc' | \
+  #       grep -v 'print_hash_of.cc' | \
+  #       grep -v 'absl/flags/' | \
+  #       grep -v 'absl/random/' | \
+  #       grep -v 'src/ci/' | \
+  #       grep -v 'internal' | \
+  #       sed -e 's/^/"/' -e 's/$/",/' | sort
+  # Note: a few unnecessary files might be left. You might need to
+  # remove it manually. We don't use abseil's flag and random libraries, hence
+  # they are filtered out.
+  sources = [
+    "src/absl/base/log_severity.cc",
+    "src/absl/debugging/failure_signal_handler.cc",
+    "src/absl/debugging/leak_check.cc",
+    "src/absl/debugging/stacktrace.cc",
+    "src/absl/debugging/symbolize.cc",
+    "src/absl/numeric/int128.cc",
+    "src/absl/status/status.cc",
+    "src/absl/status/status_payload_printer.cc",
+    "src/absl/status/statusor.cc",
+    "src/absl/strings/ascii.cc",
+    "src/absl/strings/charconv.cc",
+    "src/absl/strings/cord.cc",
+    "src/absl/strings/escaping.cc",
+    "src/absl/strings/match.cc",
+    "src/absl/strings/numbers.cc",
+    "src/absl/strings/str_cat.cc",
+    "src/absl/strings/str_replace.cc",
+    "src/absl/strings/str_split.cc",
+    "src/absl/strings/string_view.cc",
+    "src/absl/strings/substitute.cc",
+    "src/absl/synchronization/barrier.cc",
+    "src/absl/synchronization/blocking_counter.cc",
+    "src/absl/synchronization/mutex.cc",
+    "src/absl/synchronization/notification.cc",
+    "src/absl/time/civil_time.cc",
+    "src/absl/time/clock.cc",
+    "src/absl/time/duration.cc",
+    "src/absl/time/format.cc",
+    "src/absl/time/time.cc",
+    "src/absl/types/bad_any_cast.cc",
+    "src/absl/types/bad_optional_access.cc",
+    "src/absl/types/bad_variant_access.cc",
+  ]
+  configs -= [ "//build/config/compiler:goma_code" ]
+  configs += [ "//build/config/compiler:no_goma_code" ]
+  public_configs = [ ":abseil_config" ]
+  deps = [
+    ":abseil_headers_internal",
+    ":abseil_internal",
+  ]
+  public_deps = [ ":abseil_headers" ]
+
+  if (is_tsan) {
+    # Surppress tsan or abseil's bug.
+    # https://github.com/google/sanitizers/issues/953
+    cflags = [
+      "-mllvm",
+      "-tsan-instrument-atomics=0",
+      "-mllvm",
+      "-tsan-instrument-memory-accesses=0",
+    ]
+  }
+}

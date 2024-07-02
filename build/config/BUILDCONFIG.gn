@@ -1,0 +1,313 @@
+# Copyright 2014 The Goma Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+declare_args() {
+  os = host_os
+  is_clang = true
+  is_debug = true
+  is_asan = false
+  is_tsan = false
+  is_msan = false
+
+  # Special case to use mingw gcc on windows (instead of msvc or clang).
+  # Also requires is_clang=flase to work properly.
+  is_win_gcc = false
+
+  # msan_track_origins:
+  # 0 = no tracking, 1 = only initial allocation, 2 track the chain of stores.
+  msan_track_origins = 2
+
+  # Enables incremental link. Currently effective only on Win.
+  use_incremental_link = false
+
+  # Enables link time optimization. is_debug=false is required.
+  # Currently effective only on Win.
+  use_link_time_optimization = true
+
+  use_libfuzzer = false
+  use_sanitizer_coverage = false
+  with_cpu_profiling = false
+  with_heap_profiling = false
+  dcheck_always_on = false
+  with_counterz = true
+
+  # Enable revision check. If true, gomacc revision and compiler_proxy
+  # revision differ, a user will see warnings.
+  enable_revision_check = false
+
+  # TODO: remove the flag when we confirm it works well.
+  enable_lzma = true
+  cpu_arch = host_cpu
+
+  # Enabling this generates symbol files and sha256 hash.
+  is_official_build = true
+}
+
+declare_args() {
+  use_custom_libcxx = os == "linux"
+}
+
+if (target_os == "") {
+  target_os = host_os
+}
+if (target_cpu == "") {
+  target_cpu = host_cpu
+}
+if (current_cpu == "") {
+  current_cpu = target_cpu
+}
+if (current_os == "") {
+  current_os = target_os
+}
+
+# OS DEFINITIONS
+is_posix = current_os == "mac" || current_os == "linux"
+is_mac = current_os == "mac"
+is_linux = current_os == "linux"
+is_win = current_os == "win" || current_os == "winuwp"
+is_apple = current_os == "mac" || current_os == "ios"
+
+# for chromium compatibility
+# to minimize diff in build/toolchain/toolchain.gni etc.
+is_aix = false
+is_android = false
+is_chromeos = false  # goma-chromeos will use os == "linux".
+is_fuchsia = false
+is_ios = false
+is_nacl = false
+is_component_build = false
+is_chrome_branded = false
+
+assert(!is_win_gcc || os == "win", "is_win_gcc can only be used on windows")
+assert(!(is_win_gcc && is_clang), "is_win_gcc cannot be used with is_clang")
+
+using_sanitizer = is_asan || is_tsan || is_msan
+declare_args() {
+  # Since sanitizers kills subprocess on violation with messages shown to
+  # stderr, let me automatically enable the feature for them.
+  keep_subproc_stderr = using_sanitizer
+}
+
+# Since we cannot read result of perftools if we create position independent
+# executable (PIE), let me disable hardening if profiling options are set.
+may_make_pie = !with_cpu_profiling && !with_heap_profiling
+
+default_compiler_configs = [
+  "//build/config/compiler:compiler",
+  "//build/config/compiler:default_include_dirs",
+  "//build/config/compiler:goma_code",
+  "//build/config/compiler:default_optimization",
+
+  # libc++/libc++abi requires a config whose name is 'chromium_code'.
+  "//build/config/compiler:chromium_code",
+
+  "//build/config/compiler:no_rtti",
+  "//build/config/coverage:default_coverage",
+  "//build/config:defaults",
+  "//build/config:default_libs",
+  "//build/config:feature_flags",
+  "//build/config/sanitizers:default_sanitizer_flags",
+]
+if (is_debug) {
+  default_compiler_configs += [ "//build/config:debug" ]
+
+  if (os == "win" && use_incremental_link && !is_win_gcc) {
+    # Note: we don't make "incremental_linking" on when is_debug=false, because
+    # the existence of /LTCG causes /INCREMENTAL ignorance.
+    # When use_incremental_link is on, we use /LTCG:INCREMENTAL instead.
+    default_compiler_configs += [ "//build/config/win:incremental_linking" ]
+  }
+} else {
+  default_compiler_configs += [ "//build/config:release" ]
+
+  if (os == "win" && !use_link_time_optimization && !is_win_gcc) {
+    # When !is_debug && !use_link_time_optimization, /INCREMENTAL works.
+    # Note: When use_link_time_optimization is true, we enable
+    # /LTCG:INCREMENTAL, but it might cause b/35825478.
+    default_compiler_configs += [ "//build/config/win:incremental_linking" ]
+  }
+}
+
+if (is_posix) {
+  default_compiler_configs += [ "//build/config/compiler:no_exceptions" ]
+}
+if (enable_lzma) {
+  default_compiler_configs += [ "//build/config/compiler:enable_lzma" ]
+}
+
+if (keep_subproc_stderr) {
+  default_compiler_configs += [ "//build/config/compiler:keep_subproc_stderr" ]
+}
+
+if (with_cpu_profiling) {
+  default_compiler_configs += [ "//build/config/compiler:cpu_profiling" ]
+}
+
+if (with_heap_profiling) {
+  default_compiler_configs += [ "//build/config/compiler:heap_profiling" ]
+}
+
+if (with_counterz) {
+  default_compiler_configs += [ "//build/config/compiler:counterz" ]
+}
+
+if (enable_revision_check) {
+  default_compiler_configs +=
+      [ "//build/config/compiler:enable_revision_check" ]
+}
+
+if (os == "linux") {
+  if (is_clang) {
+    set_default_toolchain("//build/toolchain/linux:clang_$cpu_arch")
+    host_toolchain = "//build/toolchain/linux:clang_$cpu_arch"
+  } else {
+    set_default_toolchain("//build/toolchain/linux:$cpu_arch")
+    host_toolchain = "//build/toolchain/linux:$cpu_arch"
+  }
+}
+if (os == "mac" && is_clang) {
+  set_default_toolchain("//build/toolchain/mac:clang_$target_cpu")
+  host_toolchain = "//build/toolchain/mac:clang_$host_cpu"
+  default_compiler_configs += [ "//build/config/mac:sdk" ]
+  default_compiler_configs += [ "//build/config/compiler:mac" ]
+  cpu_arch = target_cpu
+}
+
+if (os == "win") {
+  current_cpu = cpu_arch
+  if (is_win_gcc) {
+    host_toolchain = "//build/toolchain/win:gcc_$cpu_arch"
+  } else if (is_clang) {
+    host_toolchain = "//build/toolchain/win:clang_$cpu_arch"
+  } else {
+    host_toolchain = "//build/toolchain/win:$cpu_arch"
+  }
+  set_default_toolchain(host_toolchain)
+  win_configs = [
+    "//build/config/win:lean_and_mean",
+    "//build/config/win:nominmax",
+    "//build/config/win:sdk",
+    "//build/config/win:unicode",
+    "//build/config/win:winver",
+    "//build/config/win:zlib",
+    "//build/config/win:glog",
+    "//build/config/win:rand_s",
+    "//build/config/win:default_crt",
+  ]
+
+  if (!is_win_gcc) {
+    win_configs += [
+      "//build/config/win:sdk_link",
+      "//build/config/win:console",
+    ]
+  }
+  default_compiler_configs += win_configs
+}
+
+set_defaults("executable") {
+  configs = default_compiler_configs
+}
+
+set_defaults("static_library") {
+  configs = default_compiler_configs
+}
+
+set_defaults("shared_library") {
+  configs = default_compiler_configs
+}
+
+set_defaults("source_set") {
+  configs = default_compiler_configs
+}
+
+TESTONLY_AND_VISIBILITY = [
+  "testonly",
+  "visibility",
+]
+
+# compatibility with chromium/src/build/config/BUILDCONFIG.gn
+# for third_party/nasm
+#
+# Sets default dependencies for executable and shared library targets.
+#
+# Variables
+#   no_default_deps: used in third_party/nasm
+foreach(_target_type,
+        [
+          "executable",
+          "loadable_module",
+          "shared_library",
+        ]) {
+  template(_target_type) {
+    # Alias "target_name" because it is clobbered by forward_variables_from().
+    _target_name = target_name
+    target(_target_type, _target_name) {
+      forward_variables_from(invoker,
+                             "*",
+                             TESTONLY_AND_VISIBILITY + [ "no_default_deps" ])
+      forward_variables_from(invoker, TESTONLY_AND_VISIBILITY)
+      if (!defined(deps)) {
+        deps = []
+      }
+      if (!defined(invoker.no_default_deps) || !invoker.no_default_deps) {
+        deps += []  # need this?
+      }  # no need to fix for android
+    }
+  }
+}
+
+# Below code is copied from chromium/src/build/config/BUILDCONFIG.gn
+# ==============================================================================
+# COMPONENT SETUP
+# ==============================================================================
+
+# Defines a component, which equates to a shared_library when
+# is_component_build == true and a static_library otherwise.
+#
+# Use static libraries for the static build rather than source sets because
+# many of of our test binaries link many large dependencies but often don't
+# use large portions of them. The static libraries are much more efficient to
+# link in this situation since only the necessary object files are linked.
+#
+# The invoker can override the type of the target in the non-component-build
+# case by setting static_component_type to either "source_set" or
+# "static_library". If unset, the default will be used.
+template("component") {
+  if (is_component_build) {
+    _component_mode = "shared_library"
+  } else if (defined(invoker.static_component_type)) {
+    assert(invoker.static_component_type == "static_library" ||
+           invoker.static_component_type == "source_set")
+    _component_mode = invoker.static_component_type
+  } else if (!defined(invoker.sources)) {
+    # When there are no sources defined, use a source set to avoid creating
+    # an empty static library (which generally don't work).
+    _component_mode = "source_set"
+  } else {
+    _component_mode = "static_library"
+  }
+  target(_component_mode, target_name) {
+    # Explicitly forward visibility, implicitly forward everything else.
+    # Forwarding "*" doesn't recurse into nested scopes (to avoid copying all
+    # globals into each template invocation), so won't pick up file-scoped
+    # variables. Normally this isn't too bad, but visibility is commonly
+    # defined at the file scope. Explicitly forwarding visibility and then
+    # excluding it from the "*" set works around this problem.
+    # See http://crbug.com/594610
+    forward_variables_from(invoker, [ "visibility" ])
+    forward_variables_from(invoker, "*", [ "visibility" ])
+  }
+}
+
+# Component defaults
+set_defaults("component") {
+  if (is_component_build) {
+    configs = default_shared_library_configs
+    if (is_android) {
+      configs -= [ "//build/config/android:hide_all_but_jni_onload" ]
+    }
+  } else {
+    configs = default_compiler_configs
+  }
+}

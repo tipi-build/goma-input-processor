@@ -1,0 +1,25 @@
+# Copyright 2019 Google LLC. All rights reserved.
+*.Makefile
+*.filters
+*.mk
+*.ncb
+*.props
+*.rules
+*.sdf
+*.sln
+*.suo
+*.targets
+*.user
+*.vcproj
+*.vcxproj
+*.vscode
+*.xml
+Makefile
+gyp-mac-tool
+out
+
+/buildtools
+/build/util/LASTCHANGE*
+!/build/util/LASTCHANGE.dummy
+/.clangd
+/tools/clang/dsymutil/bin/dsymutil

@@ -1,0 +1,4 @@
+# This file is used by git-cl to get repository specific information.
+CC_LIST: goma-reviews@chromium.org
+GERRIT_HOST: True
+GERRIT_SQUASH_UPLOADS: True

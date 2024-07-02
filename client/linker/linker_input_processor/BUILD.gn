@@ -1,0 +1,163 @@
+# Copyright 2018 The Goma Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+static_library("arfile_lib") {
+  sources = [
+    "arfile.cc",
+    "arfile.h",
+  ]
+  public_deps = [
+    "//client:common",
+    "//lib",
+    "//third_party:gtest_prod",
+  ]
+}
+
+static_library("arfile_reader_lib") {
+  sources = [
+    "arfile_reader.cc",
+    "arfile_reader.h",
+  ]
+  if (os == "mac") {
+    deps = [ "//client/binutils:mach_o_parser" ]
+  }
+  public_deps = [ ":arfile_lib" ]
+}
+
+static_library("linker_input_processor_lib") {
+  sources = [
+    "library_path_resolver.cc",
+    "library_path_resolver.h",
+    "linker_input_processor.cc",
+    "linker_input_processor.h",
+    "linker_script_parser.cc",
+    "linker_script_parser.h",
+  ]
+
+  public_deps = [
+    "//base",
+    "//client:content_lib",
+    "//third_party:gtest_prod",
+  ]
+
+  deps = [
+    ":arfile_lib",
+    "//client:common",
+    "//client:compiler_info_lib",
+    "//client:compiler_proxy_base_lib",
+    "//client:ioutil_lib",
+    "//lib",
+    "//lib:compiler_flag_type_specific",
+    "//third_party:glog",
+  ]
+
+  if (os == "linux") {
+    deps += [ "//client/binutils:elf_parser_lib" ]
+  }
+
+  if (os == "mac") {
+    deps += [ "//client/binutils:mach_o_parser" ]
+  }
+}
+
+static_library("thinlto_import_processor_lib") {
+  sources = [
+    "thinlto_import_processor.cc",
+    "thinlto_import_processor.h",
+  ]
+
+  deps = [
+    "//base",
+    "//lib",
+    "//lib:gcc_specific",
+    "//third_party:glog",
+    "//third_party/abseil",
+  ]
+}
+
+if (os != "win") {
+  executable("linker_input_processor") {
+    sources = [ "linker_input_processor_main.cc" ]
+    include_dirs = [ "." ]
+    deps = [
+      ":linker_input_processor_lib",
+      "//build/config:exe_and_shlib_deps",
+      "//client:compiler_info_lib",
+      "//client:compiler_proxy_lib",
+      "//client:ioutil_lib",
+      "//client/cxx:gcc_compiler_info_builder_lib",
+      "//client/cxx/include_processor:cpp_parser_lib",
+      "//lib:compiler_flag_type_specific",
+    ]
+  }
+}
+
+if (os != "win") {
+  executable("arfile_unittest") {
+    testonly = true
+    sources = [ "arfile_unittest.cc" ]
+    deps = [
+      ":arfile_lib",
+      "//build/config:exe_and_shlib_deps",
+      "//client:common",
+      "//client:goma_test_lib",
+      "//client:ioutil_lib",
+    ]
+  }
+}
+
+executable("arfile_reader_unittest") {
+  testonly = true
+  sources = [ "arfile_reader_unittest.cc" ]
+  deps = [
+    ":arfile_reader_lib",
+    "//build/config:exe_and_shlib_deps",
+    "//client:common",
+    "//client:goma_test_lib",
+  ]
+  if (os == "mac") {
+    deps += [ "//client/binutils:mach_o_parser" ]
+  }
+}
+
+executable("library_path_resolver_unittest") {
+  testonly = true
+  sources = [ "library_path_resolver_unittest.cc" ]
+  deps = [
+    ":linker_input_processor_lib",
+    "//build/config:exe_and_shlib_deps",
+    "//client:goma_test_lib",
+    "//third_party:glog",
+  ]
+  configs += [ "//client:client_config" ]
+}
+
+if (os != "win") {
+  executable("linker_input_processor_unittest") {
+    testonly = true
+    sources = [ "linker_input_processor_unittest.cc" ]
+    deps = [
+      ":linker_input_processor_lib",
+      "//build/config:exe_and_shlib_deps",
+      "//client:compiler_info_lib",
+      "//client:compiler_proxy_lib",
+      "//client:goma_test_lib",
+      "//client:ioutil_lib",
+      "//client/cxx/include_processor:cpp_parser_lib",
+    ]
+  }
+}
+
+executable("linker_script_parser_unittest") {
+  testonly = true
+  sources = [ "linker_script_parser_unittest.cc" ]
+  deps = [
+    ":linker_input_processor_lib",
+    "//build/config:exe_and_shlib_deps",
+    "//client:content_lib",
+    "//client:goma_test_lib",
+  ]
+
+  configs += [ "//client:client_config" ]
+}

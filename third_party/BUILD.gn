@@ -1,0 +1,827 @@
+# Copyright 2014 The Goma Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+config_h_dir = "config/glog/$os"
+
+glog_sources = [
+  "$config_h_dir/config.h",
+  "$config_h_dir/glog/log_severity.h",
+  "$config_h_dir/glog/logging.h",
+  "$config_h_dir/glog/raw_logging.h",
+  "$config_h_dir/glog/stl_logging.h",
+  "$config_h_dir/glog/vlog_is_on.h",
+  "glog/src/base/commandlineflags.h",
+  "glog/src/base/googleinit.h",
+  "glog/src/base/mutex.h",
+  "glog/src/demangle.cc",
+  "glog/src/demangle.h",
+  "glog/src/logging.cc",
+  "glog/src/raw_logging.cc",
+  "glog/src/signalhandler.cc",
+  "glog/src/stacktrace.h",
+  "glog/src/stacktrace_generic-inl.h",
+  "glog/src/stacktrace_libunwind-inl.h",
+  "glog/src/stacktrace_x86_64-inl.h",
+  "glog/src/symbolize.cc",
+  "glog/src/symbolize.h",
+  "glog/src/utilities.cc",
+  "glog/src/utilities.h",
+  "glog/src/vlog_is_on.cc",
+]
+
+glog_include_dirs = [
+  "$config_h_dir",
+  "glog/src",
+]
+
+glog_defines = [ "HAVE_CONFIG_H" ]
+
+if (os != "win") {
+  glog_cflags_cc = [ "-Wno-sign-compare" ]
+} else {
+  if (is_win_gcc) {
+    glog_defines += [
+      "HAVE_PTHREAD",
+      "HAVE_SNPRINTF",
+      "HAVE_UNISTD_H",
+    ]
+  } else {
+    import("//third_party/chromium_build/config/win/visual_studio_version.gni")
+
+    if (visual_studio_version == "2017" || visual_studio_version == "2019" ||
+        visual_studio_version == "2022") {
+      glog_defines += [ "HAVE_SNPRINTF" ]
+    }
+  }
+
+  glog_defines += [ "DISABLE_RTTI" ]
+  glog_cflags_cc = []
+  if (!is_win_gcc) {
+    glog_cflags_cc = [
+      "/wd4541",
+
+      # C4389: signed/unsigned mismatch
+      # Come from glog/src/windows/glog/logging.h
+      "/wd4389",
+
+      # destructor never returns, potential memory leak.
+      # Occurred in glog Fatal.
+      "/wd4722",
+    ]
+  }
+  glog_sources -= [
+    "glog/src/stacktrace.h",
+    "glog/src/stacktrace_generic-inl.h",
+    "glog/src/stacktrace_libunwind-inl.h",
+    "glog/src/stacktrace_x86_64-inl.h",
+  ]
+  glog_sources += [
+    "glog/src/windows/port.cc",
+    "glog/src/windows/port.h",
+  ]
+
+  # Glog v0.5 removes the windows predefined configs besides
+  # "port.h/.cc" above, so preemptively copied them to config/glog/win.
+  # Since port.h/.cc remain, we still have to add this include_dir.
+  # Note that this meeans that until glog is upgraded to v0.5, there'll
+  # be two copies of those files - but the ones under third_party/config
+  # will be searched first.
+  glog_include_dirs += [ "glog/src/windows" ]
+}
+
+config("glog_config") {
+  include_dirs = glog_include_dirs
+  if (is_posix || is_win_gcc) {
+    cflags = [
+      "-Wno-sign-compare",  # glog/logging.h has sign compare code
+    ]
+    if (is_posix) {
+      cflags += [
+        "-Wno-unused-local-typedef",  # For COMPILE_ASSERT macro.
+      ]
+    }
+  }
+  if (is_win_gcc) {
+    # Used by "glog/src/symbolize.cc"
+    libs = [ "dbghelp" ]
+  }
+}
+
+static_library("glog") {
+  sources = glog_sources
+  include_dirs = glog_include_dirs
+  defines = glog_defines
+  cflags_cc = glog_cflags_cc
+  public_configs = [ ":glog_config" ]
+
+  configs -= [ "//build/config/compiler:goma_code" ]
+  configs += [ "//build/config/compiler:no_goma_code" ]
+}
+
+config("has_rtti_config") {
+  defines = [
+    # gtest isn't able to figure out when RTTI is disabled for gcc
+    # versions older than 4.3.2, and assumes it's enabled.  Our Mac
+    # and Linux builds disable RTTI, and cannot guarantee that the
+    # compiler will be 4.3.2. or newer.  The Mac, for example, uses
+    # 4.2.1 as that is the latest available on that platform.  gtest
+    # must be instructed that RTTI is disabled here, and for any
+    # direct dependents that might include gtest headers.
+    "GTEST_HAS_RTTI=0",
+  ]
+}
+
+config("unittest_config") {
+  defines = [
+    "UNIT_TEST",
+    "GTEST_HAS_ABSL",
+  ]
+
+  # So that gtest headers can find themselves.
+  include_dirs = [ "gtest/googletest/include" ]
+
+  if (is_clang) {
+    cflags = [
+      "-Wno-deprecated-declarations",
+      "-Wno-unused-variable",
+    ]
+  }
+}
+
+static_library("gtest") {
+  testonly = true
+  sources = [
+    "gtest/googletest/include/gtest/gtest-death-test.h",
+    "gtest/googletest/include/gtest/gtest-message.h",
+    "gtest/googletest/include/gtest/gtest-param-test.h",
+    "gtest/googletest/include/gtest/gtest-printers.h",
+    "gtest/googletest/include/gtest/gtest-spi.h",
+    "gtest/googletest/include/gtest/gtest-test-part.h",
+    "gtest/googletest/include/gtest/gtest-typed-test.h",
+    "gtest/googletest/include/gtest/gtest.h",
+    "gtest/googletest/include/gtest/gtest_pred_impl.h",
+    "gtest/googletest/include/gtest/gtest_prod.h",
+    "gtest/googletest/include/gtest/internal/custom/gtest-port.h",
+    "gtest/googletest/include/gtest/internal/custom/gtest-printers.h",
+    "gtest/googletest/include/gtest/internal/custom/gtest.h",
+    "gtest/googletest/include/gtest/internal/gtest-death-test-internal.h",
+    "gtest/googletest/include/gtest/internal/gtest-filepath.h",
+    "gtest/googletest/include/gtest/internal/gtest-internal.h",
+    "gtest/googletest/include/gtest/internal/gtest-linked_ptr.h",
+    "gtest/googletest/include/gtest/internal/gtest-param-util-generated.h",
+    "gtest/googletest/include/gtest/internal/gtest-param-util.h",
+    "gtest/googletest/include/gtest/internal/gtest-port-arch.h",
+    "gtest/googletest/include/gtest/internal/gtest-port.h",
+    "gtest/googletest/include/gtest/internal/gtest-string.h",
+    "gtest/googletest/include/gtest/internal/gtest-tuple.h",
+    "gtest/googletest/include/gtest/internal/gtest-type-util.h",
+    "gtest/googletest/src/gtest-death-test.cc",
+    "gtest/googletest/src/gtest-filepath.cc",
+    "gtest/googletest/src/gtest-internal-inl.h",
+    "gtest/googletest/src/gtest-port.cc",
+    "gtest/googletest/src/gtest-printers.cc",
+    "gtest/googletest/src/gtest-test-part.cc",
+    "gtest/googletest/src/gtest-typed-test.cc",
+    "gtest/googletest/src/gtest.cc",
+  ]
+
+  include_dirs = [
+    "gtest/googletest",
+    "gtest/googletest/include",
+  ]
+
+  public_configs = []
+  if (is_posix) {
+    public_configs += [ ":has_rtti_config" ]
+  }
+
+  public_configs += [ ":unittest_config" ]
+
+  public_deps = [ "//third_party/abseil" ]
+
+  configs -= [ "//build/config/compiler:goma_code" ]
+  configs += [ "//build/config/compiler:no_goma_code" ]
+}
+
+# If you need to use gtest_prod.h, depend on "gtest_prod".
+config("gtest_prod_config") {
+  include_dirs = [ "gtest/googletest/include" ]
+}
+source_set("gtest_prod") {
+  sources = [ "gtest/googletest/include/gtest/gtest_prod.h" ]
+
+  public_configs = [ ":gtest_prod_config" ]
+}
+
+static_library("gtest_main") {
+  testonly = true
+  deps = [ ":gtest" ]
+  sources = [ "gtest/googletest/src/gtest_main.cc" ]
+
+  configs -= [ "//build/config/compiler:goma_code" ]
+  configs += [ "//build/config/compiler:no_goma_code" ]
+}
+
+config("gmock_config") {
+  include_dirs = [ "gtest/googlemock/include" ]
+}
+
+source_set("gmock_internal") {
+  sources = [
+    "gtest/googlemock/include/gmock/internal/gmock-generated-internal-utils.h",
+    "gtest/googlemock/include/gmock/internal/gmock-internal-utils.h",
+    "gtest/googlemock/include/gmock/internal/gmock-port.h",
+  ]
+}
+
+static_library("gmock") {
+  testonly = true
+  sources = [
+    "gtest/googlemock/include/gmock/gmock-actions.h",
+    "gtest/googlemock/include/gmock/gmock-cardinalities.h",
+    "gtest/googlemock/include/gmock/gmock-generated-actions.h",
+    "gtest/googlemock/include/gmock/gmock-generated-function-mockers.h",
+    "gtest/googlemock/include/gmock/gmock-generated-matchers.h",
+    "gtest/googlemock/include/gmock/gmock-generated-nice-strict.h",
+    "gtest/googlemock/include/gmock/gmock-matchers.h",
+    "gtest/googlemock/include/gmock/gmock-more-actions.h",
+    "gtest/googlemock/include/gmock/gmock-more-matchers.h",
+    "gtest/googlemock/include/gmock/gmock-spec-builders.h",
+    "gtest/googlemock/include/gmock/gmock.h",
+    "gtest/googlemock/src/gmock-all.cc",
+  ]
+
+  include_dirs = [
+    "gtest/googlemock/include",
+    "gtest/googlemock",
+  ]
+
+  public_deps = [
+    ":gtest",
+    "//third_party/abseil",
+  ]
+
+  deps = [ ":gmock_internal" ]
+
+  configs -= [ "//build/config/compiler:goma_code" ]
+  configs += [ "//build/config/compiler:no_goma_code" ]
+  public_configs = [ ":gmock_config" ]
+}
+
+config("liblzma_config") {
+  include_dirs = [ "xz/src/liblzma/api" ]
+}
+
+if (enable_lzma) {
+  static_library("liblzma") {
+    config_h_dir = "config/xz/$os"
+    sources = [
+      "$config_h_dir/config.h",
+      "xz/src/common/mythread.h",
+      "xz/src/common/sysdefs.h",
+      "xz/src/common/tuklib_common.h",
+      "xz/src/common/tuklib_config.h",
+      "xz/src/common/tuklib_physmem.c",
+      "xz/src/common/tuklib_physmem.h",
+      "xz/src/liblzma/api/lzma.h",
+      "xz/src/liblzma/api/lzma/base.h",
+      "xz/src/liblzma/api/lzma/bcj.h",
+      "xz/src/liblzma/api/lzma/block.h",
+      "xz/src/liblzma/api/lzma/check.h",
+      "xz/src/liblzma/api/lzma/container.h",
+      "xz/src/liblzma/api/lzma/delta.h",
+      "xz/src/liblzma/api/lzma/filter.h",
+      "xz/src/liblzma/api/lzma/hardware.h",
+      "xz/src/liblzma/api/lzma/index.h",
+      "xz/src/liblzma/api/lzma/index_hash.h",
+      "xz/src/liblzma/api/lzma/stream_flags.h",
+      "xz/src/liblzma/api/lzma/version.h",
+      "xz/src/liblzma/api/lzma/vli.h",
+      "xz/src/liblzma/check/check.c",
+      "xz/src/liblzma/check/check.h",
+      "xz/src/liblzma/check/crc32_fast.c",
+      "xz/src/liblzma/check/crc32_table.c",
+      "xz/src/liblzma/check/crc32_table_be.h",
+      "xz/src/liblzma/check/crc32_table_le.h",
+      "xz/src/liblzma/check/crc64_fast.c",
+      "xz/src/liblzma/check/crc64_table.c",
+      "xz/src/liblzma/check/crc64_table_be.h",
+      "xz/src/liblzma/check/crc64_table_le.h",
+      "xz/src/liblzma/check/crc_macros.h",
+      "xz/src/liblzma/check/sha256.c",
+      "xz/src/liblzma/common/alone_decoder.c",
+      "xz/src/liblzma/common/alone_decoder.h",
+      "xz/src/liblzma/common/alone_encoder.c",
+      "xz/src/liblzma/common/auto_decoder.c",
+      "xz/src/liblzma/common/block_buffer_decoder.c",
+      "xz/src/liblzma/common/block_buffer_encoder.c",
+      "xz/src/liblzma/common/block_decoder.c",
+      "xz/src/liblzma/common/block_decoder.h",
+      "xz/src/liblzma/common/block_encoder.c",
+      "xz/src/liblzma/common/block_encoder.h",
+      "xz/src/liblzma/common/block_header_decoder.c",
+      "xz/src/liblzma/common/block_header_encoder.c",
+      "xz/src/liblzma/common/block_util.c",
+      "xz/src/liblzma/common/common.c",
+      "xz/src/liblzma/common/common.h",
+      "xz/src/liblzma/common/easy_buffer_encoder.c",
+      "xz/src/liblzma/common/easy_decoder_memusage.c",
+      "xz/src/liblzma/common/easy_encoder.c",
+      "xz/src/liblzma/common/easy_encoder_memusage.c",
+      "xz/src/liblzma/common/easy_preset.c",
+      "xz/src/liblzma/common/easy_preset.h",
+      "xz/src/liblzma/common/filter_buffer_decoder.c",
+      "xz/src/liblzma/common/filter_buffer_encoder.c",
+      "xz/src/liblzma/common/filter_common.c",
+      "xz/src/liblzma/common/filter_common.h",
+      "xz/src/liblzma/common/filter_decoder.c",
+      "xz/src/liblzma/common/filter_decoder.h",
+      "xz/src/liblzma/common/filter_encoder.c",
+      "xz/src/liblzma/common/filter_encoder.h",
+      "xz/src/liblzma/common/filter_flags_decoder.c",
+      "xz/src/liblzma/common/filter_flags_encoder.c",
+      "xz/src/liblzma/common/hardware_physmem.c",
+      "xz/src/liblzma/common/index.c",
+      "xz/src/liblzma/common/index.h",
+      "xz/src/liblzma/common/index_decoder.c",
+      "xz/src/liblzma/common/index_encoder.c",
+      "xz/src/liblzma/common/index_encoder.h",
+      "xz/src/liblzma/common/index_hash.c",
+      "xz/src/liblzma/common/stream_buffer_decoder.c",
+      "xz/src/liblzma/common/stream_buffer_encoder.c",
+      "xz/src/liblzma/common/stream_decoder.c",
+      "xz/src/liblzma/common/stream_decoder.h",
+      "xz/src/liblzma/common/stream_encoder.c",
+      "xz/src/liblzma/common/stream_flags_common.c",
+      "xz/src/liblzma/common/stream_flags_common.h",
+      "xz/src/liblzma/common/stream_flags_decoder.c",
+      "xz/src/liblzma/common/stream_flags_encoder.c",
+      "xz/src/liblzma/common/vli_decoder.c",
+      "xz/src/liblzma/common/vli_encoder.c",
+      "xz/src/liblzma/common/vli_size.c",
+      "xz/src/liblzma/delta/delta_common.c",
+      "xz/src/liblzma/delta/delta_common.h",
+      "xz/src/liblzma/delta/delta_decoder.c",
+      "xz/src/liblzma/delta/delta_decoder.h",
+      "xz/src/liblzma/delta/delta_encoder.c",
+      "xz/src/liblzma/delta/delta_encoder.h",
+      "xz/src/liblzma/delta/delta_private.h",
+      "xz/src/liblzma/lz/lz_decoder.c",
+      "xz/src/liblzma/lz/lz_decoder.h",
+      "xz/src/liblzma/lz/lz_encoder.c",
+      "xz/src/liblzma/lz/lz_encoder.h",
+      "xz/src/liblzma/lz/lz_encoder_hash.h",
+      "xz/src/liblzma/lz/lz_encoder_hash_table.h",
+      "xz/src/liblzma/lz/lz_encoder_mf.c",
+      "xz/src/liblzma/lzma/fastpos.h",
+      "xz/src/liblzma/lzma/fastpos_table.c",
+      "xz/src/liblzma/lzma/lzma2_decoder.c",
+      "xz/src/liblzma/lzma/lzma2_decoder.h",
+      "xz/src/liblzma/lzma/lzma2_encoder.c",
+      "xz/src/liblzma/lzma/lzma2_encoder.h",
+      "xz/src/liblzma/lzma/lzma_common.h",
+      "xz/src/liblzma/lzma/lzma_decoder.c",
+      "xz/src/liblzma/lzma/lzma_decoder.h",
+      "xz/src/liblzma/lzma/lzma_encoder.c",
+      "xz/src/liblzma/lzma/lzma_encoder.h",
+      "xz/src/liblzma/lzma/lzma_encoder_optimum_fast.c",
+      "xz/src/liblzma/lzma/lzma_encoder_optimum_normal.c",
+      "xz/src/liblzma/lzma/lzma_encoder_presets.c",
+      "xz/src/liblzma/lzma/lzma_encoder_private.h",
+      "xz/src/liblzma/rangecoder/price.h",
+      "xz/src/liblzma/rangecoder/price_table.c",
+      "xz/src/liblzma/rangecoder/range_common.h",
+      "xz/src/liblzma/rangecoder/range_decoder.h",
+      "xz/src/liblzma/rangecoder/range_encoder.h",
+      "xz/src/liblzma/simple/arm.c",
+      "xz/src/liblzma/simple/armthumb.c",
+      "xz/src/liblzma/simple/ia64.c",
+      "xz/src/liblzma/simple/powerpc.c",
+      "xz/src/liblzma/simple/simple_coder.c",
+      "xz/src/liblzma/simple/simple_coder.h",
+      "xz/src/liblzma/simple/simple_decoder.c",
+      "xz/src/liblzma/simple/simple_decoder.h",
+      "xz/src/liblzma/simple/simple_encoder.c",
+      "xz/src/liblzma/simple/simple_encoder.h",
+      "xz/src/liblzma/simple/simple_private.h",
+      "xz/src/liblzma/simple/sparc.c",
+      "xz/src/liblzma/simple/x86.c",
+    ]
+    include_dirs = [
+      "$config_h_dir",
+      "xz/src/liblzma/api",
+      "xz/src/liblzma/common",
+      "xz/src/liblzma/check",
+      "xz/src/liblzma/lz",
+      "xz/src/liblzma/rangecoder",
+      "xz/src/liblzma/lzma",
+      "xz/src/liblzma/delta",
+      "xz/src/liblzma/simple",
+      "xz/src/common",
+    ]
+    defines = [
+      "HAVE_CONFIG_H",
+      "TUKLIB_SYMBOL_PREFIX=lzma_",
+    ]
+    public_configs = [ ":liblzma_config" ]
+
+    configs -= [ "//build/config/compiler:goma_code" ]
+    configs += [ "//build/config/compiler:no_goma_code" ]
+    if (os == "win") {
+      configs -= [
+        "//build/config/win:lean_and_mean",
+        "//build/config/win:unicode",
+      ]
+
+      # For xz/src/common/tuklib_physmem.c(86,18)
+      if (is_clang) {
+        cflags = [ "-Wno-incompatible-function-pointer-types" ]
+      } else if (is_win_gcc) {
+        cflags = [ "-Wno-incompatible-pointer-types" ]
+      }
+    }
+  }
+  if (is_win_gcc) {
+    # Used by "glog/src/symbolize.cc"
+    libs = [ "dbghelp" ]
+  }
+}
+
+# copied from zlib's BUILD.gn and modified for Goma.
+#  path fix: "." -> "//third_party/zlib", add "zlib/" prefix
+#  config: chromium_code -> goma_code
+#  drop use_arm_neon_optimizations
+#  drop is_ios, is_android
+#  no need to support is_win && !is_clang (on windows, clang-cl or mingw)
+#  no zlib_bench etc.
+# TODO: remove this if dependency issue has been fixed.
+
+# Copyright (c) 2013 The Chromium Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+config("zlib_config") {
+  include_dirs = [
+    "//third_party/zlib",
+
+    # added for goma. jar_parser needs minizip/unzip.h
+    "//third_party/zlib/contrib",
+  ]
+}
+
+config("zlib_internal_config") {
+  defines = [ "ZLIB_IMPLEMENTATION" ]
+
+  if (!is_debug) {
+    # Build code using -O3, see: crbug.com/1084371.
+    configs = [ "//build/config/compiler:optimize_speed" ]
+  }
+  if (is_debug || use_libfuzzer) {
+    # Enable zlib's asserts in debug and fuzzer builds.
+    defines += [ "ZLIB_DEBUG" ]
+  }
+}
+
+source_set("zlib_common_headers") {
+  sources = [
+    "zlib/chromeconf.h",
+    "zlib/deflate.h",
+    "zlib/inffast.h",
+    "zlib/inffixed.h",
+    "zlib/inflate.h",
+    "zlib/inftrees.h",
+    "zlib/zconf.h",
+    "zlib/zlib.h",
+    "zlib/zutil.h",
+  ]
+}
+
+use_arm_neon_optimizations = false
+
+# TODO: introduce build/config/arm.gni and enable arm_use_neon?
+
+use_x86_x64_optimizations = current_cpu == "x86" || current_cpu == "x64"
+
+config("zlib_adler32_simd_config") {
+  if (use_x86_x64_optimizations) {
+    defines = [ "ADLER32_SIMD_SSSE3" ]
+    if (is_win) {
+      defines += [ "X86_WINDOWS" ]
+    } else {
+      defines += [ "X86_NOT_WINDOWS" ]
+    }
+  }
+
+  if (use_arm_neon_optimizations) {
+    defines = [ "ADLER32_SIMD_NEON" ]
+  }
+}
+
+source_set("zlib_adler32_simd") {
+  visibility = [ ":*" ]
+
+  if (use_x86_x64_optimizations) {
+    sources = [
+      "zlib/adler32_simd.c",
+      "zlib/adler32_simd.h",
+    ]
+
+    cflags = [ "-mssse3" ]
+  }
+
+  if (use_arm_neon_optimizations) {
+    sources = [
+      "zlib/adler32_simd.c",
+      "zlib/adler32_simd.h",
+    ]
+  }
+
+  configs += [ ":zlib_internal_config" ]
+
+  public_configs = [ ":zlib_adler32_simd_config" ]
+
+  public_deps = [ ":zlib_common_headers" ]
+}
+
+if (use_arm_neon_optimizations) {
+  config("zlib_arm_crc32_config") {
+    # Disabled for iPhone, as described in DDI0487C_a_armv8_arm:
+    #  "All implementations of the ARMv8.1 architecture are required to
+    #   implement the CRC32* instructions. These are optional in ARMv8.0."
+    if (!is_ios) {
+      defines = [ "CRC32_ARMV8_CRC32" ]
+      if (is_android) {
+        defines += [ "ARMV8_OS_ANDROID" ]
+      } else if (is_linux || is_chromeos) {
+        defines += [ "ARMV8_OS_LINUX" ]
+      } else if (is_mac) {
+        defines += [ "ARMV8_OS_MACOS" ]
+      } else if (is_fuchsia) {
+        defines += [ "ARMV8_OS_FUCHSIA" ]
+      } else if (is_win) {
+        defines += [ "ARMV8_OS_WINDOWS" ]
+      } else {
+        assert(false, "Unsupported ARM OS")
+      }
+    }
+  }
+
+  source_set("zlib_arm_crc32") {
+    visibility = [ ":*" ]
+
+    include_dirs = [ "//third_party/zlib" ]
+
+    if (!is_win && !is_clang) {
+      assert(!use_thin_lto,
+             "ThinLTO fails mixing different module-level targets")
+      cflags_c = [ "-march=armv8-a+crc" ]
+    }
+
+    sources = [
+      "zlib/crc32_simd.c",
+      "zlib/crc32_simd.h",
+    ]
+
+    configs += [ ":zlib_internal_config" ]
+
+    public_configs = [ ":zlib_arm_crc32_config" ]
+
+    public_deps = [ ":zlib_common_headers" ]
+  }
+}
+
+config("zlib_inflate_chunk_simd_config") {
+  if (use_x86_x64_optimizations) {
+    defines = [ "INFLATE_CHUNK_SIMD_SSE2" ]
+
+    if (current_cpu == "x64") {
+      defines += [ "INFLATE_CHUNK_READ_64LE" ]
+    }
+  }
+
+  if (use_arm_neon_optimizations) {
+    defines = [ "INFLATE_CHUNK_SIMD_NEON" ]
+
+    if (current_cpu == "arm64") {
+      defines += [ "INFLATE_CHUNK_READ_64LE" ]
+    }
+  }
+}
+
+source_set("zlib_inflate_chunk_simd") {
+  visibility = [ ":*" ]
+
+  if (use_x86_x64_optimizations || use_arm_neon_optimizations) {
+    include_dirs = [ "//third_party/zlib" ]
+
+    sources = [
+      "zlib/contrib/optimizations/chunkcopy.h",
+      "zlib/contrib/optimizations/inffast_chunk.c",
+      "zlib/contrib/optimizations/inffast_chunk.h",
+      "zlib/contrib/optimizations/inflate.c",
+    ]
+  }
+
+  configs += [ ":zlib_internal_config" ]
+
+  # Needed for MSVC, which is still supported by V8 and PDFium. zlib uses K&R C
+  # style function declarations, which triggers warning C4131.
+  configs -= [ "//build/config/compiler:goma_code" ]
+  configs += [ "//build/config/compiler:no_goma_code" ]
+
+  public_configs = [ ":zlib_inflate_chunk_simd_config" ]
+
+  public_deps = [ ":zlib_common_headers" ]
+}
+
+config("zlib_crc32_simd_config") {
+  if (use_x86_x64_optimizations) {
+    defines = [ "CRC32_SIMD_SSE42_PCLMUL" ]
+  }
+}
+
+source_set("zlib_crc32_simd") {
+  visibility = [ ":*" ]
+
+  if (use_x86_x64_optimizations) {
+    sources = [
+      "zlib/crc32_simd.c",
+      "zlib/crc32_simd.h",
+    ]
+
+    cflags = [
+      "-msse4.2",
+      "-mpclmul",
+    ]
+  }
+
+  configs += [ ":zlib_internal_config" ]
+
+  public_configs = [ ":zlib_crc32_simd_config" ]
+  public_deps = [ ":zlib_common_headers" ]
+}
+
+config("zlib_x86_simd_config") {
+  if (use_x86_x64_optimizations) {
+    defines = [
+      "CRC32_SIMD_SSE42_PCLMUL",
+      "DEFLATE_FILL_WINDOW_SSE2",
+    ]
+  }
+}
+
+source_set("zlib_x86_simd") {
+  visibility = [ ":*" ]
+
+  if (use_x86_x64_optimizations) {
+    sources = [
+      "zlib/crc_folding.c",
+      "zlib/fill_window_sse.c",
+    ]
+
+    cflags = [
+      "-msse4.2",
+      "-mpclmul",
+    ]
+  }
+
+  configs += [ ":zlib_internal_config" ]
+
+  public_configs = [ ":zlib_x86_simd_config" ]
+
+  public_deps = [ ":zlib_common_headers" ]
+}
+
+config("zlib_warnings") {
+  if (is_clang && use_x86_x64_optimizations) {
+    cflags = [ "-Wno-incompatible-pointer-types" ]
+  }
+}
+
+static_library("zlib") {
+  if (!is_win) {
+    # Don't stomp on "libzlib" on other platforms.
+    output_name = "chrome_zlib"
+  }
+
+  sources = [
+    "zlib/adler32.c",
+    "zlib/chromeconf.h",
+    "zlib/compress.c",
+    "zlib/contrib/optimizations/insert_string.h",
+    "zlib/cpu_features.c",
+    "zlib/cpu_features.h",
+    "zlib/crc32.c",
+    "zlib/crc32.h",
+    "zlib/deflate.c",
+    "zlib/deflate.h",
+    "zlib/gzclose.c",
+    "zlib/gzguts.h",
+    "zlib/gzlib.c",
+    "zlib/gzread.c",
+    "zlib/gzwrite.c",
+    "zlib/infback.c",
+    "zlib/inffast.c",
+    "zlib/inffast.h",
+    "zlib/inffixed.h",
+    "zlib/inflate.h",
+    "zlib/inftrees.c",
+    "zlib/inftrees.h",
+    "zlib/trees.c",
+    "zlib/trees.h",
+    "zlib/uncompr.c",
+    "zlib/zconf.h",
+    "zlib/zlib.h",
+    "zlib/zutil.c",
+    "zlib/zutil.h",
+  ]
+
+  defines = []
+  deps = []
+
+  if (!use_x86_x64_optimizations && !use_arm_neon_optimizations) {
+    # Apparently android_cronet bot builds with NEON disabled and
+    # we also should disable optimizations for iOS@x86 (a.k.a. simulator).
+    defines += [ "CPU_NO_SIMD" ]
+  }
+
+  if (use_x86_x64_optimizations || use_arm_neon_optimizations) {
+    deps += [
+      ":zlib_adler32_simd",
+      ":zlib_inflate_chunk_simd",
+    ]
+
+    if (use_x86_x64_optimizations) {
+      deps += [ ":zlib_crc32_simd" ]
+    } else if (use_arm_neon_optimizations) {
+      sources += [ "contrib/optimizations/slide_hash_neon.h" ]
+      deps += [ ":zlib_arm_crc32" ]
+    }
+  } else {
+    sources += [ "zlib/inflate.c" ]
+  }
+
+  deps += [ ":zlib_x86_simd" ]
+
+  configs -= [ "//build/config/compiler:goma_code" ]
+  configs += [ "//build/config/compiler:no_goma_code" ]
+
+  public_configs = [ ":zlib_config" ]
+
+  configs += [
+    ":zlib_internal_config",
+
+    # Must be after no_chromium_code for warning flags to be ordered correctly.
+    ":zlib_warnings",
+  ]
+
+  allow_circular_includes_from = deps
+}
+
+config("minizip_warnings") {
+  visibility = [ ":*" ]
+
+  if (is_clang) {
+    # zlib uses `if ((a == b))` for some reason.
+    cflags = [ "-Wno-parentheses-equality" ]
+  }
+}
+
+static_library("minizip") {
+  sources = [
+    "zlib/contrib/minizip/ioapi.c",
+    "zlib/contrib/minizip/ioapi.h",
+    "zlib/contrib/minizip/iowin32.c",
+    "zlib/contrib/minizip/iowin32.h",
+    "zlib/contrib/minizip/unzip.c",
+    "zlib/contrib/minizip/unzip.h",
+    "zlib/contrib/minizip/zip.c",
+    "zlib/contrib/minizip/zip.h",
+  ]
+
+  if (!is_win) {
+    sources -= [
+      "zlib/contrib/minizip/iowin32.c",
+      "zlib/contrib/minizip/iowin32.h",
+    ]
+  }
+
+  if (is_apple) {
+    # Mac, Android and the BSDs don't have fopen64, ftello64, or fseeko64. We
+    # use fopen, ftell, and fseek instead on these systems.
+    defines = [ "USE_FILE32API" ]
+  }
+
+  deps = [ ":zlib" ]
+
+  configs -= [ "//build/config/compiler:goma_code" ]
+  configs += [ "//build/config/compiler:no_goma_code" ]
+
+  public_configs = [ ":zlib_config" ]
+
+  configs += [
+    # Must be after no_chromium_code for warning flags to be ordered correctly.
+    ":minizip_warnings",
+  ]
+}

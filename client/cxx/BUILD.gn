@@ -1,0 +1,281 @@
+# Copyright 2018 The Goma Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+static_library("cxx_compiler_info_lib") {
+  sources = [
+    "cxx_compiler_info.cc",
+    "cxx_compiler_info.h",
+  ]
+
+  deps = [ "//client/cxx/include_processor:cpp_directive_lib" ]
+
+  public_deps = [ "//client:compiler_info_lib" ]
+}
+
+static_library("cxx_compiler_type_specific_lib") {
+  sources = [
+    "cxx_compiler_type_specific.cc",
+    "cxx_compiler_type_specific.h",
+  ]
+
+  public_deps = [ "//client:compiler_type_specific_lib" ]
+
+  deps = [ "//client/cxx/include_processor:cpp_include_processor_lib" ]
+}
+
+static_library("clang_compiler_info_builder_helper_lib") {
+  sources = [
+    "clang_compiler_info_builder_helper.cc",
+    "clang_compiler_info_builder_helper.h",
+  ]
+
+  public_deps = [
+    "//base",
+    "//client:compiler_info_data_proto",
+  ]
+
+  deps = [
+    ":cxx_compiler_info_builder_lib",
+    ":cxx_compiler_info_lib",
+    "//client:common",
+    "//client:compiler_info_lib",
+    "//client:ioutil_lib",
+    "//client:scoped_tmp_file_lib",
+    "//client/cxx/include_processor:cpp_directive_lib",
+    "//lib",
+    "//lib:compiler_flag_type_specific",
+    "//lib:goma_hash",
+  ]
+}
+
+static_library("nacl_compiler_info_builder_helper_lib") {
+  sources = [
+    "nacl_compiler_info_builder_helper.cc",
+    "nacl_compiler_info_builder_helper.h",
+  ]
+
+  deps = [
+    "//base",
+    "//client:common",
+    "//lib",
+    "//third_party/abseil",
+  ]
+}
+
+if (is_linux) {
+  static_library("chromeos_compiler_info_builder_helper_lib") {
+    sources = [
+      "chromeos_compiler_info_builder_helper.cc",
+      "chromeos_compiler_info_builder_helper.h",
+    ]
+
+    deps = [
+      "//base",
+      "//client:common",
+      "//client:compiler_proxy_base_lib",
+      "//client:file_path_util_lib",
+      "//client/binutils:elf_dep_parser_lib",
+      "//client/binutils:elf_parser_lib",
+      "//client/binutils:elf_util_lib",
+      "//lib",
+      "//lib:gcc_specific",
+      "//third_party:glog",
+    ]
+
+    public_deps = [
+      "//base",
+      "//client:compiler_info_lib",
+      "//third_party/abseil",
+    ]
+  }
+}
+
+static_library("cxx_compiler_info_builder_lib") {
+  sources = [
+    "cxx_compiler_info_builder.cc",
+    "cxx_compiler_info_builder.h",
+  ]
+
+  public_deps = [
+    ":cxx_compiler_info_lib",
+    "//client:compiler_info_lib",
+  ]
+
+  deps = [
+    "//client:common",
+    "//client:ioutil_lib",
+    "//client:scoped_tmp_file_lib",
+    "//client:sha256_hash_cache_lib",
+    "//lib:goma_hash",
+  ]
+}
+
+static_library("gcc_compiler_info_builder_lib") {
+  sources = [
+    "gcc_compiler_info_builder.cc",
+    "gcc_compiler_info_builder.h",
+  ]
+  public_deps = [
+    "//base",
+    "//client:compiler_info_lib",
+  ]
+  deps = [
+    ":clang_compiler_info_builder_helper_lib",
+    ":cxx_compiler_info_builder_lib",
+    ":nacl_compiler_info_builder_helper_lib",
+    "//client:common",
+    "//client:ioutil_lib",
+    "//lib",
+    "//lib:gcc_specific",
+    "//third_party:glog",
+    "//third_party/abseil",
+  ]
+
+  if (is_linux) {
+    deps += [
+      ":chromeos_compiler_info_builder_helper_lib",
+      "//client/binutils:elf_dep_parser_lib",
+      "//client/binutils:elf_parser_lib",
+      "//client/binutils:elf_util_lib",
+    ]
+  }
+
+  public_configs = [ "//client:client_config" ]
+}
+
+static_library("gcc_compiler_type_specific") {
+  sources = [
+    "gcc_compiler_type_specific.cc",
+    "gcc_compiler_type_specific.h",
+  ]
+
+  public_deps = [
+    ":cxx_compiler_type_specific_lib",
+    ":gcc_compiler_info_builder_lib",
+  ]
+
+  deps = [
+    "//client/linker/linker_input_processor:linker_input_processor_lib",
+    "//client/linker/linker_input_processor:thinlto_import_processor_lib",
+  ]
+}
+
+static_library("vc_compiler_info_builder_lib") {
+  sources = [
+    "vc_compiler_info_builder.cc",
+    "vc_compiler_info_builder.h",
+  ]
+  public_deps = [
+    "//base",
+    "//client:compiler_info_lib",
+    "//lib:vc_specific",
+  ]
+  deps = [
+    ":clang_compiler_info_builder_helper_lib",
+    ":cxx_compiler_info_builder_lib",
+    ":cxx_compiler_info_lib",
+    "//client:common",
+    "//client:ioutil_lib",
+    "//lib",
+    "//third_party:glog",
+    "//third_party/abseil",
+  ]
+
+  if (is_linux) {
+    deps += [
+      "//client/binutils:elf_dep_parser_lib",
+      "//client/binutils:elf_parser_lib",
+      "//client/binutils:elf_util_lib",
+    ]
+  }
+
+  public_configs = [ "//client:client_config" ]
+}
+
+static_library("vc_compiler_type_specific") {
+  sources = [
+    "vc_compiler_type_specific.cc",
+    "vc_compiler_type_specific.h",
+  ]
+
+  public_deps = [
+    ":cxx_compiler_type_specific_lib",
+    ":vc_compiler_info_builder_lib",
+    "//client/linker/linker_input_processor:thinlto_import_processor_lib",
+  ]
+}
+
+executable("cxx_compiler_info_builder_unittest") {
+  testonly = true
+  sources = [ "cxx_compiler_info_builder_unittest.cc" ]
+  deps = [
+    ":cxx_compiler_info_builder_lib",
+    "//build/config:exe_and_shlib_deps",
+    "//client:common",
+    "//client:compiler_info_lib",
+    "//client:goma_test_lib",
+  ]
+}
+
+executable("gcc_compiler_info_builder_unittest") {
+  testonly = true
+  sources = [ "gcc_compiler_info_builder_unittest.cc" ]
+
+  deps = [
+    ":gcc_compiler_info_builder_lib",
+    "//build/config:exe_and_shlib_deps",
+    "//client:common",
+    "//client:compiler_proxy_base_lib",
+    "//client:goma_test_lib",
+    "//client:subprocess_lib",
+    "//lib",
+  ]
+
+  if (is_linux) {
+    deps += [ "//client/binutils:elf_util_lib" ]
+  }
+}
+
+executable("vc_compiler_info_builder_unittest") {
+  testonly = true
+  sources = [ "vc_compiler_info_builder_unittest.cc" ]
+
+  # TODO: vc_compiler_info_builder_unittest should not depend on
+  # compiler_proxy_lib and cpp_parser_lib. However, since CompilerInfo is
+  # created, they're currently required.
+  deps = [
+    ":cxx_compiler_info_lib",
+    ":vc_compiler_info_builder_lib",
+    "//build/config:exe_and_shlib_deps",
+    "//client:compiler_proxy_lib",
+    "//client:goma_test_lib",
+    "//client/cxx/include_processor:cpp_parser_lib",
+  ]
+}
+
+executable("clang_compiler_info_builder_helper_unittest") {
+  testonly = true
+  sources = [ "clang_compiler_info_builder_helper_unittest.cc" ]
+
+  deps = [
+    ":clang_compiler_info_builder_helper_lib",
+    ":cxx_compiler_info_lib",
+    "//build/config:exe_and_shlib_deps",
+    "//client:compiler_info_lib",
+    "//client:goma_test_lib",
+  ]
+}
+
+if (is_linux) {
+  executable("chromeos_compiler_info_builder_helper_unittest") {
+    testonly = true
+    sources = [ "chromeos_compiler_info_builder_helper_unittest.cc" ]
+
+    deps = [
+      ":chromeos_compiler_info_builder_helper_lib",
+      "//build/config:exe_and_shlib_deps",
+      "//client:goma_test_lib",
+    ]
+  }
+}

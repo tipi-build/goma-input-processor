@@ -1,0 +1,264 @@
+// Copyright 2015 The Goma Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+
+syntax = "proto2";
+
+import "google/protobuf/timestamp.proto";
+
+package devtools_goma;
+
+// CompilerInfoData is a serializable format of CompilerInfo.
+//
+// NEXT ID TO USE: 44
+message CompilerInfoData {
+  // Type of file in ResouceInfo.
+  enum ResourceType {
+    // Files under clang's --resource-dir.
+    CLANG_RESOURCE = 1;
+    // Files to represents GCC installation in clang.
+    CLANG_GCC_INSTALLATION_MARKER = 2;
+    // Compiler binaries, shared objects, linker, interpreter, etc.
+    // to be used in compile.
+    EXECUTABLE_BINARY = 3;
+    // MacOSX SDK settings json for LC_VERSION_MIN_MACOSX
+    // http://b/145780867 http://crbug.com/1261709
+    MACOSX_SDK_SETTINGS_JSON = 4;
+  }
+
+  // FileId of the compiler or subprogram.
+  // NEXT ID TO USE: 9
+  message FileId {
+    option deprecated = true;
+
+    optional uint32 DEPRECATED_volume_serial_number = 5 [deprecated = true];
+    optional uint32 DEPRECATED_file_index_high = 6 [deprecated = true];
+    optional uint32 DEPRECATED_file_index_low_DEPRECATED = 7
+        [deprecated = true];
+
+    optional uint64 DEPRECATED_dev = 1 [deprecated = true];
+    optional uint64 DEPRECATED_inode = 2 [deprecated = true];
+
+    optional int64 mtime = 3;
+    optional int64 size = 4;
+    optional bool is_directory = 8;
+  };
+
+  // FileStat of the compiler, subprogram or other resource files.
+  message FileStat {
+    optional int64 DEPRECATED_mtime = 1 [deprecated = true];
+    optional int64 size = 2;
+    optional bool is_directory = 3;
+    optional google.protobuf.Timestamp mtime_ts = 4;
+  };
+
+  message SubprogramInfo {
+    reserved 1;
+    // Absolute path of the subprogram.
+    optional string abs_path = 5;
+    // User specified path of the subprogram. It might be a relative path
+    // or an absolute path.
+    optional string user_specified_path = 6;
+    // SHA256 hash of the subprogram.
+    optional string hash = 2;
+    optional FileId DEPRECATED_file_id = 3 [deprecated = true];
+    // FileStat of the subprogram.
+    optional FileStat file_stat = 4;
+  };
+
+  // Implicit input files used for the compile.
+  // We should upload following files in additon to header files etc.
+  //
+  // For example, default denylist files for clang sanitizer does not show up
+  // in its command line.  However, lack of such files may make goma server
+  // create broken object files.  It need to be set to ResourceInfo.
+  message ResourceInfo {
+    // A relative path name of the file.
+    optional string name = 1;
+    // A type of the file.
+    optional ResourceType type = 2;
+    // SHA256 of the file.  It is used for detecting update.
+    // If arbitrary toolchain support is enabled, this is also used for
+    // ToolchainSpec.
+    optional string hash = 3;
+    // FileStat of the file.  It is used for detecting update.
+    // If arbitrary toolchain support is enabled, this is also used for
+    // ToolchainSpec.
+    optional FileStat file_stat = 4;
+    // True if the file is executable.
+    // If arbitrary toolchain support is enabled, this will be used for
+    // ToolchainSpec.
+    optional bool is_executable = 5;
+    // If this resource is a symlink to another file, set the path here.
+    // If arbitrary toolchain support is enabled, this will be used for
+    // ToolchainSpec.
+    optional string symlink_path = 6;
+  }
+
+  // compiler name.
+  optional string name = 1;
+  // compiler version.
+  optional string version = 2;
+  // compiler target
+  optional string target = 3;
+  // compiler language
+  optional string lang = 4;
+
+  // some compiler command is just a wrapper for real compiler, and the command
+  // doesn't change when the real compiler is updated.
+  // TODO:
+  // Make only compiler info cache key has |cwd| and |local_compiler_path|
+  // so that duplicate compiler infos are merged.
+  optional FileId DEPRECATED_local_compiler_id = 5 [deprecated = true];
+  optional FileStat local_compiler_stat = 34;
+  optional string local_compiler_path = 28;
+  optional string cwd = 32;
+  optional string local_compiler_hash = 29;
+
+  // Real compiler's FileStat if real_compiler_path != local_compiler_path.
+  // Otherwise, real_compiler_stat must be the same as local_compiler_stat.
+  optional FileId DEPRECATED_real_compiler_id = 6 [deprecated = true];
+  optional FileStat real_compiler_stat = 35;
+  optional string real_compiler_path = 8;
+  // hash is sha256 hash of real compiler.
+  // TODO: better to rename this to real_compiler_hash?
+  optional string hash = 7;
+
+  // Additional command line flags to be sent to backends.
+  // (for example, -fuse-init-arrary).
+  repeated string additional_flags = 20;
+
+  // A list of subprograms, which a compiler can invoke during the compile.
+  // For example, subprograms specified by -B flag ("objdump", "as"), and clang
+  // plugins.
+  repeated SubprogramInfo subprograms = 21;
+
+  // A list of resource files.
+  repeated ResourceInfo resource = 36;
+
+  // When taking compiler info is failed, |failed_at| is not 0.
+  // The error reason should be set in error_message.
+  optional int64 failed_at = 23;
+  optional string error_message = 24;
+  // if found is false, failed_at should be > 0, and error_message should not be
+  // empty.
+  optional bool found = 25;
+
+  // Timestamp this cache is used recently.
+  optional int64 last_used_at = 30;
+
+  oneof language_extension {
+    // C/C++ extension.
+    CxxCompilerInfoData cxx = 37;
+    // Javac extension
+    JavacCompilerInfoData javac = 38;
+    // Java extension
+    JavaCompilerInfoData java = 39;
+    // Fake extension
+    FakeCompilerInfoData fake = 40;
+    // Rustc extension
+    RustcCompilerInfoData rustc = 41;
+    // DartAnalyzer extension
+    DartAnalyzerCompilerInfoData dart_analyzer = 42;
+  }
+
+  // Dimensions to be used in RequsterInfo.
+  repeated string dimensions = 43;
+
+  reserved 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 26, 27, 31, 33;
+};
+
+// CxxCompilerInfoData contains C/C++ related CompilerInfoData.
+// NEXT ID TO USE: 18
+message CxxCompilerInfoData {
+  message MacroValue {
+    optional string key = 1;
+    optional int64 value = 2;
+  }
+
+  repeated string quote_include_paths = 1;
+  repeated string cxx_system_include_paths = 2;
+  repeated string system_include_paths = 3;
+  repeated string system_framework_paths = 4;
+
+  optional string predefined_macros = 5;
+
+  // unordered map.
+  repeated string supported_predefined_macros = 6;
+  repeated string hidden_predefined_macros = 7;
+  // unordered map.
+  // use map<string, int64>? b/21859856
+  repeated MacroValue has_feature = 8;
+  repeated MacroValue has_extension = 9;
+  repeated MacroValue has_attribute = 10;
+  repeated MacroValue has_cpp_attribute = 11;
+  repeated MacroValue has_declspec_attribute = 12;
+  repeated MacroValue has_builtin = 13;
+  repeated MacroValue has_warning = 16;
+
+  // Path to compiler resource directory.
+  optional string resource_dir = 14;
+
+  // Automatically prepend this path before system include paths.
+  // This is required for Windows NaCl toolchain because all system include
+  // paths are relative paths from the toolchain root.
+  //
+  optional string toolchain_root = 15;
+
+  // cxx_target is a target triple that compiler will generate code to.
+  // it differs from CompilerInfoData's target, which is `gcc -dumpmachine`
+  // or default target of the compiler binary.
+  // This cxx_target is actual target, and would change in cross compiling.
+  // This is used for __is_target_* builtin macros.
+  optional string cxx_target = 17;
+};
+
+// JavacCompilerInfoData contains Javac related CompilerInfoData.
+// NEXT ID TO USE: 1
+message JavacCompilerInfoData {
+  // currently no extension
+}
+
+// JavaCompilerInfoData contains Java related CompilerInfoData.
+// NEXT ID TO USE: 1
+message JavaCompilerInfoData {
+  // currently no extension
+}
+
+// FakeCompilerInfoData contains Fake related CompilerInfoData.
+// NEXT ID TO USE: 1
+message FakeCompilerInfoData {
+  // currently no extension
+}
+
+// RustcCompilerInfoData contains Rustc related CompilerInfoData.
+// NEXT ID TO USE: 1
+message RustcCompilerInfoData {
+  // currently no extension
+}
+
+// DartAnalyzerCompilerInfoData contains DartAnalyzer related CompilerInfoData.
+// NEXT ID TO USE: 1
+message DartAnalyzerCompilerInfoData {
+  // currently no extension
+}
+
+// CompilerInfoDataTable is a table of CompilerInfoData indexed by
+// compiler_info_key.
+//
+// NEXT ID TO USE: 4
+message CompilerInfoDataTable {
+  message Entry {
+    repeated string keys = 1;
+    optional CompilerInfoData data = 2;
+  }
+
+  // CompilerInfoData per its hash.
+  repeated Entry compiler_info_data = 1;
+
+  optional int32 DEPRECATED_version = 2 [deprecated=true];
+
+  // When this revision is different, all cache will be disposed.
+  optional string built_revision = 3;
+};

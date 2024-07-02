@@ -1,0 +1,70 @@
+config("benchmark_config") {
+  include_dirs = [ "src/include" ]
+  defines = [ "HAVE_STD_REGEX" ]
+  if (os == "win" && !is_clang && !is_win_gcc) {
+    # 'inline' used more than once for benchmark.h
+    cflags = [ "/wd4141" ]
+  }
+
+  if (os == "win") {
+    cflags = [ "-Wno-invalid-offsetof" ]
+  }
+}
+
+static_library("benchmark") {
+  sources = [
+    "src/src/arraysize.h",
+    "src/src/benchmark.cc",
+    "src/src/benchmark_api_internal.cc",
+    "src/src/benchmark_api_internal.h",
+    "src/src/benchmark_main.cc",
+    "src/src/benchmark_name.cc",
+    "src/src/benchmark_register.cc",
+    "src/src/benchmark_register.h",
+    "src/src/benchmark_runner.cc",
+    "src/src/benchmark_runner.h",
+    "src/src/check.h",
+    "src/src/colorprint.cc",
+    "src/src/colorprint.h",
+    "src/src/commandlineflags.cc",
+    "src/src/commandlineflags.h",
+    "src/src/complexity.cc",
+    "src/src/complexity.h",
+    "src/src/console_reporter.cc",
+    "src/src/counter.cc",
+    "src/src/counter.h",
+    "src/src/csv_reporter.cc",
+    "src/src/cycleclock.h",
+    "src/src/internal_macros.h",
+    "src/src/json_reporter.cc",
+    "src/src/log.h",
+    "src/src/mutex.h",
+    "src/src/perf_counters.cc",
+    "src/src/perf_counters.h",
+    "src/src/re.h",
+    "src/src/reporter.cc",
+    "src/src/sleep.cc",
+    "src/src/sleep.h",
+    "src/src/statistics.cc",
+    "src/src/statistics.h",
+    "src/src/string_util.cc",
+    "src/src/string_util.h",
+    "src/src/sysinfo.cc",
+    "src/src/thread_manager.h",
+    "src/src/thread_timer.h",
+    "src/src/timers.cc",
+    "src/src/timers.h",
+  ]
+
+  if (os == "win") {
+    if (is_win_gcc) {
+      libs = [ "shlwapi" ]
+    } else {
+      libs = [ "shlwapi.lib" ]
+    }
+  }
+
+  configs -= [ "//build/config/compiler:goma_code" ]
+  configs += [ "//build/config/compiler:no_goma_code" ]
+  public_configs = [ ":benchmark_config" ]
+}

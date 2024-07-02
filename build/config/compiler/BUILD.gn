@@ -1,0 +1,567 @@
+# Copyright 2014 The Goma Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+if (os == "win") {
+  import("//build/toolchain/goma.gni")
+}
+
+import("//build/config/clang/clang.gni")
+import("//build/toolchain/toolchain.gni")
+
+# default_include_dirs ---------------------------------------------------------
+#
+# This is a separate config so that third_party code (which would not use the
+# source root and might have conflicting versions of some headers) can remove
+# this and specify their own include paths.
+config("default_include_dirs") {
+  include_dirs = [
+    "//",
+    root_gen_dir,
+  ]
+}
+
+config("compiler") {
+  asmflags = []
+  cflags = []
+  cflags_c = []
+  cflags_cc = []
+  cflags_objc = []
+  cflags_objcc = []
+  ldflags = []
+  defines = []
+  configs = []
+
+  configs += [ ":clang_revision" ]
+
+  if (is_clang) {
+    cflags += [ "-Werror" ]
+  }
+
+  if (is_posix || is_win_gcc) {
+    cflags_cc += [ "-std=c++14" ]
+
+    cflags_c += [ "-std=c11" ]
+
+    # hardening.
+    # stack protection.
+    cflags += [ "-fstack-protector-all" ]
+
+    # making Address space layout randomization (ASLR) fully functional.
+    if (may_make_pie) {
+      cflags += [ "-fPIE" ]
+    }
+
+    # sanitizer build with _FORTIFY_SOURCE is not supported, and it requires a
+    # -O level bigger than 0.
+    if (!is_asan && !is_msan && !is_debug) {
+      defines += [ "_FORTIFY_SOURCE=2" ]
+    }
+
+    if (is_win_gcc) {
+      # For -fstack-protector-all
+      libs = [ "ssp" ]
+    }
+  }
+
+  if (os == "linux" || is_win_gcc) {
+    cflags += [
+      "-g",
+      "-pthread",
+      "-fPIC",
+      "-pipe",
+    ]
+    ldflags += [
+      "-pthread",
+      "-fPIC",
+    ]
+    if (!is_win_gcc) {
+      ldflags += [
+        "-Wl,-z,noexecstack",
+        "-Wl,-z,now",
+        "-Wl,-z,relro",
+      ]
+    }
+    sysroot = ""
+    if (current_cpu == "x64") {
+      cflags += [
+        "-m64",
+        "-march=x86-64",
+      ]
+      ldflags += [ "-m64" ]
+      if (os == "linux") {
+        sysroot = "//third_party/chromium_build/linux/debian_bullseye_amd64-sysroot"
+      }
+    } else if (current_cpu == "x86") {
+      cflags += [ "-m32" ]
+      ldflags += [ "-m32" ]
+      cflags += [
+        "-msse2",
+        "-mfpmath=sse",
+        "-mmmx",
+      ]
+    }
+    if (sysroot != "") {
+      sysroot_flags = [ "--sysroot=" + rebase_path(sysroot, root_build_dir) ]
+      cflags += sysroot_flags
+      asmflags += sysroot_flags
+      ldflags += sysroot_flags
+    }
+
+    if (use_lld) {
+      ldflags += [
+        "-fuse-ld=lld",
+
+        # This is necessary to prevent crash of goma on chromiumos chroot env.
+        # (crbug.com/780045#c35)
+        "-Wl,-hash-style=both",
+      ]
+    }
+  } else if (os == "mac") {
+    cflags_cc += [ "-stdlib=libc++" ]
+    ldflags += [ "-stdlib=libc++" ]
+    cflags += [ "-gdwarf-2" ]
+  } else if (os == "win") {
+    import("//third_party/chromium_build/config/win/visual_studio_version.gni")
+
+    if (is_debug) {
+      cflags += [ "/MTd" ]
+    } else {
+      cflags += [ "/MT" ]
+    }
+
+    # Treat warnings as errors.
+    cflags += [ "/WX" ]
+
+    if (is_debug) {
+      # Disable -Winvalid-offsetof warning, which is triggered by
+      # third_party/protobuf on Windows debug builds (crbug.com/991377).
+      cflags += [ "-Wno-invalid-offsetof" ]
+    }
+
+    # clang does not support /ZI.
+    # goma does not support /Zi (PDB) or /ZI (PDB + edit and continue)
+    # clang-cl.exe's /Zi is the alias of /Z7 (It does not produce PDB).
+    # So, anyway we can use /Zi for clang.
+    #                 debug      release
+    # clang            /Zi         /Zi
+    # clang+goma       /Zi         /Zi
+    # cl.exe           /ZI         /Zi
+    # cl.exe+goma      /Z7         /Z7
+    if (is_clang) {
+      cflags += [ "/Zi" ]
+    } else if (use_goma) {
+      cflags += [ "/Z7" ]
+    } else if (is_debug) {
+      cflags += [ "/ZI" ]
+    } else {
+      cflags += [ "/Zi" ]
+    }
+
+    cflags += [
+      "/Gy",  # Enable Function-Level Linking
+      "/EHsc",  # Exception Handling used by STL.
+    ]
+    ldflags += [ "/DEBUG" ]
+    defines += [ "_HAS_EXCEPTIONS=0" ]
+    if (!is_clang) {
+      cflags += [
+        "/GS",  # Buffer Security Check
+        "/MP",  # Build With Multiple Processes
+        "/FS",  # Preserve previous PDB behavior.
+      ]
+    } else {
+      cflags += [
+        # Many files use intrinsics without including this header.
+        "/FIIntrin.h",
+      ]
+      if (visual_studio_version == "2017") {
+        cflags += [ "-fmsc-version=1911" ]
+      } else if (visual_studio_version == "2019") {
+        cflags += [ "-fmsc-version=1916" ]
+      }
+      if (current_cpu == "x86") {
+        cflags += [ "-m32" ]
+      } else {
+        cflags += [ "-m64" ]
+      }
+    }
+  }
+  if (dcheck_always_on) {
+    defines += [ "DCHECK_ALWAYS_ON=1" ]
+  }
+
+  cflags_objc += cflags_c
+  cflags_objcc += cflags_cc
+
+  if (is_posix) {
+    asmflags += cflags
+    asmflags += cflags_c
+  }
+}
+
+config("mac") {
+  if (current_toolchain == "//build/toolchain/mac:clang_universal") {
+    cflags = [
+      "-arch",
+      "i386",
+      "-arch",
+      "x86_64",
+    ]
+    ldflags = [
+      "-arch",
+      "i386",
+      "-arch",
+      "x86_64",
+    ]
+  }
+  if (current_toolchain == "//build/toolchain/mac:clang") {
+    cflags = [
+      "-arch",
+      "x86_64",
+    ]
+    ldflags = [
+      "-arch",
+      "x86_64",
+    ]
+  }
+}
+
+config("cpu_profiling") {
+  defines = [ "HAVE_CPU_PROFILER=1" ]
+  libs = [ "profiler" ]
+
+  # This is for stacktrace.
+  cflags = [ "-fno-omit-frame-pointer" ]
+}
+
+config("heap_profiling") {
+  defines = [ "HAVE_HEAP_PROFILER=1" ]
+  libs = [ "tcmalloc" ]
+}
+
+config("counterz") {
+  defines = [ "HAVE_COUNTERZ=1" ]
+}
+
+config("enable_revision_check") {
+  defines = [ "ENABLE_REVISION_CHECK" ]
+}
+
+config("enable_lzma") {
+  defines = [ "ENABLE_LZMA" ]
+}
+
+config("keep_subproc_stderr") {
+  defines = [ "KEEP_SUBPROC_STDERR" ]
+}
+
+config("clang_revision") {
+  if (is_clang && clang_base_path == default_clang_base_path) {
+    update_args = [
+      "--print-revision",
+      "--verify-version=$clang_version",
+    ]
+    if (llvm_force_head_revision) {
+      update_args += [ "--llvm-force-head-revision" ]
+    }
+    clang_revision = exec_script("//tools/clang/scripts/update.py",
+                                 update_args,
+                                 "trim string")
+
+    # This is here so that all files get recompiled after a clang roll and
+    # when turning clang on or off. (defines are passed via the command line,
+    # and build system rebuild things when their commandline changes). Nothing
+    # should ever read this define.
+    defines = [ "CR_CLANG_REVISION=\"$clang_revision\"" ]
+  }
+}
+
+# Optimization --------------------------------------------------------------
+
+config("optimize") {
+  ldflags = []
+  if (os == "linux" || is_win_gcc) {
+    cflags = [
+      "-msse2",
+
+      # Put data and code in their own sections, so that unused symbols can
+      # be removed at link time with --gc-sections.
+      "-fdata-sections",
+      "-ffunction-sections",
+    ]
+
+    if (use_custom_libcxx) {
+      ldflags += [
+        "-Wl,--no-as-needed",
+        "-lpthread",
+      ]
+    }
+
+    ldflags += [
+      # http://lwn.net/Articles/192624/
+      "-Wl,-O1",
+      "-Wl,--as-needed",
+      "-Wl,--gc-sections",
+    ]
+  } else if (os == "win") {
+    cflags = [
+      "/Ox",  # full optimization.
+      "/Ot",  # speed.
+      "/Oy",  # omit frame pointers.
+    ]
+
+    # TODO: support LTO for lld
+    if (use_link_time_optimization && !use_lld) {
+      if (!is_clang) {
+        cflags += [ "/GL" ]
+      }
+      if (use_incremental_link) {
+        ldflags = [ "/LTCG:INCREMENTAL" ]  # useLinkTimeCodeGeneration
+        arflags = [ "/LTCG:INCREMENTAL" ]  # useLinkTimeCodeGeneration
+      } else {
+        ldflags = [ "/LTCG" ]  # useLinkTimeCodeGeneration
+        arflags = [ "/LTCG" ]  # useLinkTimeCodeGeneration
+      }
+    }
+  } else {
+    cflags = []
+  }
+
+  if (os != "win" || is_win_gcc) {
+    cflags += [ "-O2" ]
+  }
+
+  if (use_thin_lto) {
+    assert(is_clang && use_lld && os == "linux",
+           "ThinLTO is supported in clang with lld on linux")
+    cflags += [ "-flto=thin" ]
+    ldflags += [ "-flto=thin" ]
+  }
+
+  defines = [ "NDEBUG" ]
+}
+
+config("no_optimize") {
+  if (os == "win" && !is_win_gcc) {
+    cflags = [
+      "/Od",  # Disable optimization.
+      "/Ob0",  # Disable all inlining (on by default).
+      "/RTC1",  # Runtime checks for stack frame and uninitialized variables.
+    ]
+  } else {
+    cflags = [ "-O0" ]
+  }
+}
+
+config("optimize_max") {
+  # This is for nasm.
+  configs = [ ":optimize" ]
+}
+
+config("optimize_speed") {
+  # This is for zlib
+  # XXX: use -O3?
+  configs = [ ":optimize" ]
+}
+
+config("default_optimization") {
+  if (is_debug) {
+    configs = [ ":no_optimize" ]
+  } else {
+    configs = [ ":optimize" ]
+  }
+}
+
+# rtti -------------------------------------------------------------------
+config("rtti") {
+  if (os == "win" && !is_win_gcc) {
+    cflags_cc = [ "/GR" ]
+  }
+}
+
+config("no_rtti") {
+  if (os == "win" && !is_win_gcc) {
+    cflags_cc = [ "/GR-" ]
+  } else {
+    cflags_cc = [ "-fno-rtti" ]
+  }
+}
+
+# On Windows compiling on x64, VC will issue a warning when converting size_t
+# to int because it will truncate the value.
+config("no_size_t_to_int_warning") {
+  if (os == "win" && current_cpu == "x64" && !is_win_gcc) {
+    cflags = [ "/wd4267" ]
+  }
+}
+
+# exceptions -------------------------------------------------------------
+#
+# Allows turning Exceptions on or off.
+# Note: exceptions are disallowed in Google code.
+
+config("exceptions") {
+  if (os == "win" && !is_win_gcc) {
+    # Enables exceptions in the STL.
+    if (!use_custom_libcxx) {
+      defines = [ "_HAS_EXCEPTIONS=1" ]
+    }
+    cflags_cc = [ "/EHsc" ]
+  } else {
+    cflags_cc = [ "-fexceptions" ]
+    cflags_objcc = cflags_cc
+  }
+}
+
+config("no_exceptions") {
+  if (os == "win" && !is_win_gcc) {
+    # Disables exceptions in the STL.
+    # libc++ uses the __has_feature macro to control whether to use exceptions,
+    # so defining this macro is unnecessary. Defining _HAS_EXCEPTIONS to 0 also
+    # breaks libc++ because it depends on MSVC headers that only provide certain
+    # declarations if _HAS_EXCEPTIONS is 1. Those MSVC headers do not use
+    # exceptions, despite being conditional on _HAS_EXCEPTIONS.
+    if (!use_custom_libcxx) {
+      defines = [ "_HAS_EXCEPTIONS=0" ]
+    }
+  } else {
+    cflags_cc = [ "-fno-exceptions" ]
+    cflags_objcc = cflags_cc
+  }
+}
+
+# goma_code --------------------------------------------------------------
+#
+# Toggles between higher and lower warnings for code that is part of goma.
+config("goma_code") {
+  cflags = []
+  if (os == "win" && !is_win_gcc) {
+    cflags += [
+      "/W4",  # Warning level 4.
+      "/wd4127",  # (for abseil) conditional expression is constant
+      "/wd4244",  # (for abseil) any conversion that may cause loss of data
+    ]
+
+    if (is_clang) {
+      # TODO: remove this.
+      cflags += [ "-Wno-sign-compare" ]
+    }
+  } else {
+    cflags += [
+      "-Wall",
+      "-Wextra",
+      "-Wsign-compare",
+    ]
+  }
+  if (is_clang) {
+    cflags += [
+      "-Wimplicit-fallthrough",
+      "-Wthread-safety",
+
+      # This is for buildtools/third_party/libc++abi/cxa_demangle_stub.cc
+      "-Wno-unused-parameter",
+      "-Werror",
+    ]
+  }
+}
+
+config("chromium_code") {
+  # This is empty config used by libc++/libc++abi.
+}
+
+config("no_goma_code") {
+  cflags = []
+  defines = []
+
+  if (os == "linux") {
+    cflags += [
+      "-Wno-unused-result",
+      "-Wno-format",
+    ]
+  } else if (os == "win") {
+    if (!is_win_gcc) {
+      cflags += [
+        "/W3",  # Warning level 3.
+        "/wd4800",  # Disable warning when forcing value to bool.
+
+        # Suppress warning on conversion that cause possibly loss of data.
+        "/wd4244",  # any conversion that may cause loss of data.
+        "/wd4267",  # conversion from __size_t.
+
+        # Allow POSIX style functions.
+        "/wd4996",
+
+        "/wd4291",  # no matching operator delete found
+
+        # conversion from 'unsigned int' to 'yasm_symrec_get_label_bytecodep'
+        # of greater size come from yasm.
+        "/wd4312",
+      ]
+    }
+    defines += [
+      "_CRT_NONSTDC_NO_WARNINGS",
+      "_CRT_NONSTDC_NO_DEPRECATE",
+
+      # Suppress warning on unsafe functions.
+      "_CRT_SECURE_NO_WARNINGS",
+    ]
+
+    if (is_clang) {
+      cflags += [
+        "-Wno-bitwise-instead-of-logical",
+        "-Wno-enum-compare-switch",
+        "-Wno-microsoft-cast",
+        "-Wno-microsoft-include",
+        "-Wno-invalid-noreturn",
+        "-Wno-null-pointer-arithmetic",  # TODO:
+                                         # Possibly reenable if the warning
+                                         # becomes usable again upstream.
+        "-Wno-null-pointer-subtraction",
+        "-Wno-tautological-constant-compare",
+      ]
+    }
+    if (is_clang || is_win_gcc) {
+      cflags += [
+        "-Wno-deprecated-declarations",
+        "-Wno-deprecated-non-prototype",
+        "-Wno-implicit-fallthrough",
+        "-Wno-missing-field-initializers",
+        "-Wno-shift-negative-value",
+        "-Wno-unused-but-set-variable",
+        "-Wno-unused-const-variable",
+        "-Wno-unused-function",
+        "-Wno-unused-variable",
+      ]
+
+      cflags_cc = [ "-Wno-reorder" ]
+    }
+  }
+
+  if (is_clang) {
+    cflags += [
+      # TODO: Clean up and enable.
+      # minizip contains misleading-indentation code
+      "-Wno-misleading-indentation",
+
+      # ioapi.c in minizip violates this.
+      "-Wno-deprecated-non-prototype",
+    ]
+  }
+}
+
+config("no_chromium_code") {
+  # This is just alias used for chromium's third_party build config.
+  configs = [ ":no_goma_code" ]
+}
+
+# Some code presumes that pointers to structures/objects are compatible
+# regardless of whether what they point to is already known to be valid.
+# gcc 4.9 and earlier had no way of suppressing this warning without
+# suppressing the rest of them.  Here we centralize the identification of
+# the gcc 4.9 toolchains.
+config("no_incompatible_pointer_warnings") {
+  cflags = []
+  if (is_clang) {
+    cflags += [ "-Wno-incompatible-pointer-types" ]
+  }
+}

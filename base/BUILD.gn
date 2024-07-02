@@ -1,0 +1,105 @@
+# Copyright 2014 The Goma Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+declare_args() {
+  use_absl_backed_sync_primitives = false
+}
+
+config("base_config") {
+  include_dirs = [ "." ]
+  cflags = []
+  if (use_absl_backed_sync_primitives) {
+    cflags += [ "-DUSE_ABSL_BACKED_SYNC_PRIMITIVES" ]
+  }
+  if (is_win_gcc) {
+    # Used by base/socket_helper_win.cc
+    libs = [ "ws2_32" ]
+  }
+}
+
+static_library("base") {
+  sources = [
+    "compiler_specific.h",
+    "file_dir.cc",
+    "file_dir.h",
+    "filesystem.cc",
+    "filesystem.h",
+    "lockhelper.cc",
+    "lockhelper.h",
+    "options.cc",
+    "options.h",
+    "path.cc",
+    "path.h",
+    "status.h",
+  ]
+  deps = [ "//third_party:glog" ]
+  public_deps = [
+    "//third_party/abseil",
+    "//third_party/chromium_base:platform_thread",
+  ]
+
+  if (os == "win") {
+    sources += [
+      "config_win.h",
+      "socket_helper_win.cc",
+      "socket_helper_win.h",
+    ]
+
+    if (!is_win_gcc) {
+      cflags = [
+        # These warnings come from int and SOCKET type mismatch.
+        "/wd4309",  # Truncation of constant value
+      ]
+    }
+  }
+  public_configs = [ ":base_config" ]
+}
+
+static_library("goma_unittest") {
+  testonly = true
+  sources = [ "goma_unittest.cc" ]
+  deps = [
+    ":base",
+    "//third_party:gtest",
+  ]
+}
+
+executable("lockhelper_unittest") {
+  testonly = true
+  sources = [ "lockhelper_unittest.cc" ]
+  deps = [
+    ":base",
+    ":goma_unittest",
+    "//build/config:exe_and_shlib_deps",
+    "//third_party:glog",
+    "//third_party:gtest",
+  ]
+}
+
+executable("filesystem_unittest") {
+  testonly = true
+  sources = [ "filesystem_unittest.cc" ]
+  deps = [
+    ":base",
+    ":goma_unittest",
+    "//build/config:exe_and_shlib_deps",
+    "//third_party:glog",
+    "//third_party:gtest",
+  ]
+}
+
+if (os == "win") {
+  executable("socket_helper_win_unittest") {
+    testonly = true
+    sources = [ "socket_helper_win_unittest.cc" ]
+    deps = [
+      ":base",
+      ":goma_unittest",
+      "//build/config:exe_and_shlib_deps",
+      "//third_party:glog",
+      "//third_party:gtest",
+      "//third_party/abseil",
+    ]
+  }
+}

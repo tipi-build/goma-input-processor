@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+
+# Copyright 2014 The Goma Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+"""Tests for goma-make."""
+
+import imp
+import os
+import sys
+import tempfile
+import unittest
+
+
+_TEST_DIR = os.path.abspath(os.path.dirname(__file__))
+_GOMA_MAKE_PATH = os.path.abspath(os.path.join(_TEST_DIR, 'goma-make'))
+
+class GomaMakeTest(unittest.TestCase):
+
+  def setUp(self):
+    mod_name, _ = os.path.splitext(os.path.basename(_GOMA_MAKE_PATH))
+    print _GOMA_MAKE_PATH
+    self._module = imp.load_source(mod_name, _GOMA_MAKE_PATH)
+    self._tmpfile = ''
+
+  def tearDown(self):
+    if self._tmpfile:
+      os.unlink(self._tmpfile)
+
+  def testIsDeniedShouldReturnTrueIfPathIsInDenylist(self):
+    self.assertTrue(self._module.IsDenied('/tmp', ['/tmp']))
+    self.assertTrue(self._module.IsDenied('/tmp', ['non-related', '/tmp']))
+    self.assertTrue(self._module.IsDenied('/usr/local/etc',
+                                               ['/usr', '/tmp']))
+    self.assertTrue(self._module.IsDenied('/use/local/etc',
+                                               ['non-related', '/local']))
+    self.assertTrue(self._module.IsDenied('/use/local/etc',
+                                               ['non-related', '/etc']))
+
+  def testIsDeniedShouldReturnFalseIfPathIsNotInDenylist(self):
+    self.assertFalse(self._module.IsDenied('/tmp', []))
+    self.assertFalse(self._module.IsDenied('/tmp', ['non-related']))
+    self.assertFalse(self._module.IsDenied('/usr/local/etc',
+                                                ['/opt', '/tmp']))
+
+  def testRemoveParallelBuildArgumentsShouldWork(self):
+    args = [
+        'make',
+        'KEY=VALUE',
+        '-j', '65536',
+        '-d',
+        '-f', 'makefile',
+        '-i',
+        '-l', '1',
+        '-k',
+        'KEY2=VALUE2',
+        'all']
+    expected = [
+        'make',
+        'KEY=VALUE',
+        '-d',
+        '-f', 'makefile',
+        '-i',
+        '-l', '1',
+        '-k',
+        'KEY2=VALUE2',
+        'all']
+    actual = self._module.RemoveParallelBuildArguments(args)
+    self.assertEqual(actual, expected)
+
+  def testGetDenylist(self):
+    denylist = self._module.GetDenylist()
+    self.assertEqual(denylist, self._module._DENYLIST)
+
+# TODO: add more test using environment variables.
+
+
+def main():
+  suite = unittest.TestLoader().loadTestsFromTestCase(GomaMakeTest)
+  result = unittest.TextTestRunner().run(suite)
+
+  exit_code = 0
+  if result.errors:
+    exit_code |= 0x01
+  if result.failures:
+    exit_code |= 0x01
+  if exit_code:
+    sys.exit(exit_code)
+
+
+if __name__ == '__main__':
+  main()

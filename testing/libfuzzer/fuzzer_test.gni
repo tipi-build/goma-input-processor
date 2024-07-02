@@ -1,0 +1,161 @@
+# Copyright 2015 The Chromium Authors. All rights reserved.
+# Copied from chromium's testing/libfuzzer/fuzzer_test.gni
+# and modified for goma.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# Defines fuzzer_test.
+#
+import("//testing/test.gni")
+
+# fuzzer_test is used to define individual libfuzzer tests.
+#
+# Supported attributes:
+# - (required) sources - fuzzer test source files
+# - deps - test dependencies
+# - additional_configs - additional configs to be used for compilation
+# - dict - a dictionary file for the fuzzer.
+# - libfuzzer_options - options for the fuzzer (e.g. -max_len or -timeout).
+# - seed_corpus - a directory with seed corpus.
+#
+# If use_libfuzzer gn flag is defined, then proper fuzzer would be build.
+# Without use_libfuzzer or use_afl a unit-test style binary would be built on
+# linux and the whole target is a no-op otherwise.
+#
+# The template wraps test() target with appropriate dependencies.
+# If any test run-time options are present (dict or libfuzzer_options), then a
+# config (.options file) file would be generated or modified in root output
+# dir (next to test).
+template("fuzzer_test") {
+  if (use_libfuzzer) {
+    assert(defined(invoker.sources), "Need sources in $target_name.")
+
+    test_deps = [ "//testing/libfuzzer:libfuzzer_main" ]
+
+    if (defined(invoker.deps)) {
+      test_deps += invoker.deps
+    }
+
+    if (defined(invoker.seed_corpus)) {
+      out = "$root_build_dir/$target_name" + "_seed_corpus.zip"
+
+      action(target_name + "_seed_corpus") {
+        script = "//testing/libfuzzer/archive_corpus.py"
+        args = [
+          "--corpus",
+          rebase_path(invoker.seed_corpus),
+          "--output",
+          rebase_path(out),
+          "--fuzzer",
+          rebase_path("$root_build_dir/$target_name", root_build_dir),
+        ]
+
+        outputs = [ out ]
+        deps = [ "//testing/libfuzzer:seed_corpus" ]
+      }
+
+      test_deps += [ ":" + target_name + "_seed_corpus" ]
+    }
+
+    if (defined(invoker.dict) || defined(invoker.libfuzzer_options)) {
+      if (defined(invoker.dict)) {
+        # Copy dictionary to output.
+        copy(target_name + "_dict_copy") {
+          sources = [ invoker.dict ]
+          outputs = [ "$root_build_dir/" + target_name + ".dict" ]
+        }
+        test_deps += [ ":" + target_name + "_dict_copy" ]
+      }
+
+      # Generate .options file.
+      config_name = target_name + ".options"
+      action(config_name) {
+        script = "//testing/libfuzzer/gen_fuzzer_config.py"
+        args = [
+          "--config",
+          rebase_path("$root_build_dir/" + config_name),
+        ]
+
+        if (defined(invoker.dict)) {
+          args += [
+            "--dict",
+            rebase_path("$root_build_dir/" + invoker.target_name + ".dict", root_build_dir),
+          ]
+        }
+
+        if (defined(invoker.libfuzzer_options)) {
+          args += [ "--libfuzzer_options" ]
+          args += invoker.libfuzzer_options
+        }
+
+        outputs = [ "$root_build_dir/$config_name" ]
+      }
+      test_deps += [ ":" + config_name ]
+    }
+
+    # This is a hack to make fuzzer_teset targets automatically get the needed
+    # dependencies (To be exact, it is "buildtools/third_party:libc++" that
+    # fuzzers need, because we build fuzzers with our own customized libc++ by
+    # enabling use_custom_libcxx).
+    #
+    # What Chromium does is to make this dependency a default inside
+    # "executable".
+    # (see https://cs.chromium.org/chromium/src/build/config/BUILDCONFIG.gn?rcl=bcb8877&l=581)
+    # However, that requires some nontrivial changes to
+    # build/config/BUILD{CONFIG}.gn. Once we pull in Chromiums' build configs,
+    # we can deprecate the dependency here. Note that "test" and "fuzzer_test"
+    # are all "executable".
+    test_deps += [ "//build/config:fuzzer_test_deps" ]
+
+    test(target_name) {
+      forward_variables_from(invoker,
+                             [
+                               "cflags",
+                               "cflags_cc",
+                               "check_includes",
+                               "defines",
+                               "include_dirs",
+                               "sources",
+                               "libs",
+                             ])
+      deps = test_deps
+
+      if (defined(invoker.additional_configs)) {
+        configs += invoker.additional_configs
+      }
+
+      configs += [ "//testing/libfuzzer:fuzzer_test_config" ]
+
+      # Used by WebRTC to suppress some Clang warnings in their codebase.
+      if (defined(invoker.suppressed_configs)) {
+        configs -= invoker.suppressed_configs
+      }
+    }
+  } else {
+    # noop on unsupported platforms.
+    # mark attributes as used.
+    assert(invoker.sources == [] || invoker.sources != [])
+    if (defined(invoker.additional_configs)) {
+      assert(
+          invoker.additional_configs == [] || invoker.additional_configs != [])
+    }
+    if (defined(invoker.deps)) {
+      assert(invoker.deps == [] || invoker.deps != [])
+    }
+    if (defined(invoker.dict)) {
+      assert(invoker.dict == [] || invoker.dict != [])
+    }
+    if (defined(invoker.libfuzzer_options)) {
+      assert(invoker.libfuzzer_options == [] || invoker.libfuzzer_options != [])
+    }
+    if (defined(invoker.seed_corpus)) {
+      assert(invoker.seed_corpus == [] || invoker.seed_corpus != [])
+    }
+    assert(!defined(invoker.check_includes) || invoker.check_includes != [])
+    assert(!defined(invoker.include_dirs) || invoker.include_dirs != [])
+    assert(!defined(invoker.defines) || invoker.defines != [])
+
+    group(target_name) {
+    }
+  }
+}

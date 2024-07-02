@@ -1,0 +1,571 @@
+# Copyright 2014 Google LLC. The Goma Authors. All Rights Reserved.
+
+import("//testing/libfuzzer/fuzzer_test.gni")
+import("//third_party/protobuf/proto_library.gni")
+
+proto_library("goma_proto") {
+  sources = [
+    "goma_data.proto",
+    "goma_log.proto",
+  ]
+  import_dirs = [ "//third_party/protobuf/protobuf/src" ]
+}
+
+config("lib_config") {
+  include_dirs = [ "." ]
+}
+
+static_library("lib") {
+  sources = [
+    "cmdline_parser.cc",
+    "cmdline_parser.h",
+    "compiler_flag_type.cc",
+    "compiler_flag_type.h",
+    "compiler_flags.cc",
+    "compiler_flags.h",
+    "compress_util.cc",
+    "compress_util.h",
+    "execreq_normalizer.cc",
+    "execreq_normalizer.h",
+    "execreq_verifier.cc",
+    "execreq_verifier.h",
+    "file_data_output.cc",
+    "file_data_output.h",
+    "file_helper.cc",
+    "file_helper.h",
+    "file_reader.cc",
+    "file_reader.h",
+    "fileflag.cc",
+    "fileflag.h",
+    "flag_parser.cc",
+    "flag_parser.h",
+    "known_warning_options.h",
+    "path_resolver.cc",
+    "path_resolver.h",
+    "path_util.cc",
+    "path_util.h",
+    "scoped_fd.cc",
+    "scoped_fd.h",
+  ]
+
+  public_configs = [ ":lib_config" ]
+
+  public_deps = [
+    ":goma_proto",
+    "//base",
+    "//third_party:glog",
+    "//third_party/abseil",
+    "//third_party/protobuf:protobuf_full",
+  ]
+  if (enable_lzma) {
+    public_deps += [ "//third_party:liblzma" ]
+  }
+}
+
+source_set("cxx_specific") {
+  sources = [ "cxx_flags.h" ]
+  deps = [ ":lib" ]
+}
+
+static_library("gcc_specific") {
+  sources = [
+    "gcc_execreq_normalizer.cc",
+    "gcc_execreq_normalizer.h",
+    "gcc_flags.cc",
+    "gcc_flags.h",
+  ]
+  public_deps = [ ":cxx_specific" ]
+  deps = [
+    ":clang_flags_helper",
+    ":lib",
+  ]
+}
+
+static_library("clang_flags_helper") {
+  sources = [
+    "clang_flags_helper.cc",
+    "clang_flags_helper.h",
+  ]
+  public_deps = [ "//third_party/abseil" ]
+  deps = [ ":lib" ]
+}
+
+static_library("vc_specific") {
+  sources = [
+    "vc_execreq_normalizer.cc",
+    "vc_execreq_normalizer.h",
+    "vc_flags.cc",
+    "vc_flags.h",
+  ]
+  public_deps = [ ":cxx_specific" ]
+  deps = [
+    ":clang_flags_helper",
+    ":lib",
+  ]
+}
+
+static_library("clang_tidy_specific") {
+  sources = [
+    "clang_tidy_execreq_normalizer.cc",
+    "clang_tidy_execreq_normalizer.h",
+    "clang_tidy_flags.cc",
+    "clang_tidy_flags.h",
+  ]
+  public_deps = [ ":cxx_specific" ]
+  deps = [
+    ":gcc_specific",
+    ":lib",
+  ]
+}
+
+static_library("java_specific") {
+  sources = [
+    "java_execreq_normalizer.cc",
+    "java_execreq_normalizer.h",
+    "java_flags.cc",
+    "java_flags.h",
+  ]
+  deps = [ ":lib" ]
+}
+
+static_library("dart_analyzer_specific") {
+  sources = [
+    "dart_analyzer_execreq_normalizer.cc",
+    "dart_analyzer_execreq_normalizer.h",
+    "dart_analyzer_flags.cc",
+    "dart_analyzer_flags.h",
+  ]
+  deps = [ ":lib" ]
+}
+
+static_library("rust_specific") {
+  sources = [
+    "rustc_execreq_normalizer.cc",
+    "rustc_execreq_normalizer.h",
+    "rustc_flags.cc",
+    "rustc_flags.h",
+  ]
+  deps = [ ":lib" ]
+  cflags = [ "-Wno-comment" ]
+}
+
+static_library("fake_specific") {
+  sources = [
+    "fake_execreq_normalizer.cc",
+    "fake_execreq_normalizer.h",
+    "fake_flags.cc",
+    "fake_flags.h",
+  ]
+  deps = [ ":lib" ]
+}
+
+static_library("compiler_flag_type_specific") {
+  sources = [
+    "compiler_flag_type_specific.cc",
+    "compiler_flag_type_specific.h",
+    "compiler_flags_parser.cc",
+    "compiler_flags_parser.h",
+  ]
+  public_deps = [
+    ":clang_tidy_specific",
+    ":dart_analyzer_specific",
+    ":fake_specific",
+    ":gcc_specific",
+    ":java_specific",
+    ":lib",
+    ":rust_specific",
+    ":vc_specific",
+  ]
+}
+
+static_library("goma_hash") {
+  sources = [
+    "goma_hash.cc",
+    "goma_hash.h",
+  ]
+  public_deps = [ ":lib" ]
+  deps = [
+    "//base",
+    "//third_party/boringssl:boringssl",
+  ]
+}
+
+static_library("goma_file") {
+  sources = [
+    "goma_file.cc",
+    "goma_file.h",
+  ]
+  public_deps = [
+    ":goma_data_util",
+    ":lib",
+    "//base",
+  ]
+  deps = [ "//third_party:glog" ]
+}
+
+static_library("goma_data_util") {
+  sources = [
+    "goma_data_util.cc",
+    "goma_data_util.h",
+  ]
+  deps = [
+    ":goma_hash",
+    ":goma_proto",
+    "//third_party:glog",
+  ]
+}
+
+executable("clang_flags_helper_unittest") {
+  testonly = true
+  sources = [ "clang_flags_helper_unittest.cc" ]
+
+  deps = [
+    ":clang_flags_helper",
+    "//base:goma_unittest",
+    "//build/config:exe_and_shlib_deps",
+    "//third_party:gtest",
+  ]
+}
+
+executable("clang_tidy_execreq_normalizer_unittest") {
+  testonly = true
+  sources = [ "clang_tidy_execreq_normalizer_unittest.cc" ]
+  deps = [
+    ":compiler_flag_type_specific",
+    ":lib",
+    "//base:goma_unittest",
+    "//build/config:exe_and_shlib_deps",
+    "//third_party:gtest",
+  ]
+}
+
+executable("clang_tidy_flags_unittest") {
+  testonly = true
+  sources = [ "clang_tidy_flags_unittest.cc" ]
+  deps = [
+    ":clang_tidy_specific",
+    ":compiler_flag_type_specific",
+    ":lib",
+    "//base:goma_unittest",
+    "//build/config:exe_and_shlib_deps",
+    "//third_party:gtest",
+  ]
+}
+
+executable("cmdline_parser_unittest") {
+  testonly = true
+  sources = [ "cmdline_parser_unittest.cc" ]
+  deps = [
+    ":lib",
+    "//base:goma_unittest",
+    "//build/config:exe_and_shlib_deps",
+    "//third_party:glog",
+    "//third_party:gtest",
+  ]
+}
+
+executable("compiler_flags_test") {
+  testonly = true
+  sources = [ "compiler_flags_unittest.cc" ]
+  deps = [
+    ":clang_tidy_specific",
+    ":compiler_flag_type_specific",
+    ":lib",
+    "//base:goma_unittest",
+    "//build/config:exe_and_shlib_deps",
+    "//third_party:glog",
+    "//third_party:gtest",
+  ]
+}
+
+executable("compiler_flag_type_specific_unittest") {
+  testonly = true
+  sources = [ "compiler_flag_type_specific_unittest.cc" ]
+  deps = [
+    ":compiler_flag_type_specific",
+    ":lib",
+    "//base:goma_unittest",
+    "//build/config:exe_and_shlib_deps",
+    "//third_party:glog",
+    "//third_party:gtest",
+  ]
+}
+
+executable("compress_util_unittest") {
+  testonly = true
+  sources = [ "compress_util_unittest.cc" ]
+  deps = [
+    ":lib",
+    "//base:goma_unittest",
+    "//build/config:exe_and_shlib_deps",
+    "//third_party:glog",
+    "//third_party:gtest",
+  ]
+}
+
+executable("execreq_normalizer_unittest") {
+  testonly = true
+  sources = [ "execreq_normalizer_unittest.cc" ]
+  deps = [
+    ":lib",
+    "//base:goma_unittest",
+    "//build/config:exe_and_shlib_deps",
+    "//third_party:glog",
+    "//third_party:gtest",
+  ]
+}
+
+executable("execreq_verifier_unittest") {
+  testonly = true
+  sources = [ "execreq_verifier_unittest.cc" ]
+  deps = [
+    ":lib",
+    "//base:goma_unittest",
+    "//build/config:exe_and_shlib_deps",
+    "//third_party:glog",
+    "//third_party:gtest",
+  ]
+}
+
+executable("fake_flags_unittest") {
+  testonly = true
+  sources = [ "fake_flags_unittest.cc" ]
+  deps = [
+    ":compiler_flag_type_specific",
+    ":fake_specific",
+    ":lib",
+    "//base:goma_unittest",
+    "//build/config:exe_and_shlib_deps",
+    "//third_party:glog",
+    "//third_party:gtest",
+  ]
+}
+
+executable("file_reader_unittest") {
+  testonly = true
+  sources = [ "file_reader_unittest.cc" ]
+  deps = [
+    ":lib",
+    "//base:goma_unittest",
+    "//build/config:exe_and_shlib_deps",
+    "//third_party:glog",
+    "//third_party:gtest",
+  ]
+}
+
+executable("flag_parser_unittest") {
+  testonly = true
+  sources = [ "flag_parser_unittest.cc" ]
+  deps = [
+    ":lib",
+    "//base:goma_unittest",
+    "//build/config:exe_and_shlib_deps",
+    "//third_party:gtest",
+  ]
+}
+
+executable("gcc_execreq_normalizer_unittest") {
+  testonly = true
+  sources = [ "gcc_execreq_normalizer_unittest.cc" ]
+  deps = [
+    ":compiler_flag_type_specific",
+    ":gcc_specific",
+    ":lib",
+    "//base:goma_unittest",
+    "//build/config:exe_and_shlib_deps",
+    "//third_party:glog",
+    "//third_party:gtest",
+  ]
+}
+
+executable("gcc_flags_unittest") {
+  testonly = true
+  sources = [ "gcc_flags_unittest.cc" ]
+  deps = [
+    ":compiler_flag_type_specific",
+    ":gcc_specific",
+    ":lib",
+    "//base:goma_unittest",
+    "//build/config:exe_and_shlib_deps",
+    "//third_party:glog",
+    "//third_party:gmock",
+    "//third_party:gtest",
+  ]
+}
+
+executable("goma_data_util_unittest") {
+  testonly = true
+  sources = [ "goma_data_util_unittest.cc" ]
+  deps = [
+    ":goma_data_util",
+    ":goma_proto",
+    "//base:goma_unittest",
+    "//build/config:exe_and_shlib_deps",
+    "//third_party:gtest",
+  ]
+}
+
+executable("goma_hash_unittest") {
+  testonly = true
+  sources = [ "goma_hash_unittest.cc" ]
+  deps = [
+    ":goma_hash",
+    "//base:goma_unittest",
+    "//build/config:exe_and_shlib_deps",
+    "//third_party:gtest",
+  ]
+}
+
+executable("file_data_output_unittest") {
+  testonly = true
+  sources = [ "file_data_output_unittest.cc" ]
+  deps = [
+    ":lib",
+    "//base:goma_unittest",
+    "//build/config:exe_and_shlib_deps",
+    "//third_party:gtest",
+  ]
+}
+
+executable("java_execreq_normalizer_unittest") {
+  testonly = true
+  sources = [ "java_execreq_normalizer_unittest.cc" ]
+
+  deps = [
+    ":compiler_flag_type_specific",
+    ":lib",
+    "//base:goma_unittest",
+    "//build/config:exe_and_shlib_deps",
+    "//third_party:gtest",
+  ]
+}
+
+executable("java_flags_unittest") {
+  testonly = true
+  sources = [ "java_flags_unittest.cc" ]
+
+  deps = [
+    ":compiler_flag_type_specific",
+    ":java_specific",
+    ":lib",
+    "//base:goma_unittest",
+    "//build/config:exe_and_shlib_deps",
+    "//third_party:gtest",
+  ]
+}
+
+executable("path_resolver_unittest") {
+  testonly = true
+  sources = [ "path_resolver_unittest.cc" ]
+  deps = [
+    ":lib",
+    "//base:goma_unittest",
+    "//build/config:exe_and_shlib_deps",
+    "//third_party:gtest",
+  ]
+}
+
+executable("path_unittest") {
+  testonly = true
+  sources = [ "path_unittest.cc" ]
+  deps = [
+    ":lib",
+    "//base:goma_unittest",
+    "//build/config:exe_and_shlib_deps",
+    "//third_party:gtest",
+  ]
+}
+
+executable("path_util_unittest") {
+  testonly = true
+  sources = [ "path_util_unittest.cc" ]
+  deps = [
+    ":lib",
+    "//base:goma_unittest",
+    "//build/config:exe_and_shlib_deps",
+    "//third_party:gtest",
+  ]
+}
+
+executable("dart_analyzer_flags_unittest") {
+  testonly = true
+  sources = [ "dart_analyzer_flags_unittest.cc" ]
+  deps = [
+    ":compiler_flag_type_specific",
+    ":dart_analyzer_specific",
+    ":lib",
+    "//base:goma_unittest",
+    "//build/config:exe_and_shlib_deps",
+    "//third_party:glog",
+    "//third_party:gtest",
+  ]
+}
+
+executable("rustc_flags_unittest") {
+  testonly = true
+  sources = [ "rustc_flags_unittest.cc" ]
+  deps = [
+    ":compiler_flag_type_specific",
+    ":lib",
+    ":rust_specific",
+    "//base:goma_unittest",
+    "//build/config:exe_and_shlib_deps",
+    "//third_party:glog",
+    "//third_party:gtest",
+  ]
+}
+
+executable("vc_execreq_normalizer_unittest") {
+  testonly = true
+  sources = [ "vc_execreq_normalizer_unittest.cc" ]
+  deps = [
+    ":compiler_flag_type_specific",
+    ":lib",
+    ":vc_specific",
+    "//base:goma_unittest",
+    "//build/config:exe_and_shlib_deps",
+    "//third_party:gtest",
+  ]
+}
+
+executable("vc_flags_unittest") {
+  testonly = true
+  sources = [ "vc_flags_unittest.cc" ]
+  deps = [
+    ":compiler_flag_type_specific",
+    ":lib",
+    ":vc_specific",
+    "//base:goma_unittest",
+    "//build/config:exe_and_shlib_deps",
+    "//third_party:gmock",
+    "//third_party:gtest",
+  ]
+}
+
+proto_library("flag_parser_fuzzer_proto") {
+  sources = [ "flag_parser_fuzzer.proto" ]
+}
+
+fuzzer_test("flag_parser_fuzzer") {
+  sources = [ "flag_parser_fuzzer.cc" ]
+  deps = [
+    ":flag_parser_fuzzer_proto",
+    ":lib",
+    "//third_party/libprotobuf-mutator",
+  ]
+}
+
+fuzzer_test("path_resolver_fuzzer") {
+  sources = [ "path_resolver_fuzzer.cc" ]
+  deps = [ ":lib" ]
+}
+
+proto_library("goma_stats_proto") {
+  sources = [ "goma_stats.proto" ]
+}
+
+proto_library("goma_statz_stats_proto") {
+  sources = [ "goma_statz_stats.proto" ]
+
+  deps = [ ":goma_stats_proto" ]
+}

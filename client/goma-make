@@ -1,0 +1,125 @@
+#!/usr/bin/python3
+#
+# Copyright 2012 The Goma Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+"""A thin wrapper of make command for Chromium OS build.
+
+Unfortunately, there are several packages with which we cannot specify
+-j option. For such packages, we modify PATH environment variable not
+to use goma.
+"""
+
+import os
+import sys
+
+
+_DENYLIST = [
+    '/dev-libs/nss',  # make -j fails
+    '/app-crypt/nss',  # make -j fails
+    '/dev-libs/m17n-lib',  # make -j fails
+    '/sys-fs/mtools',  # make -j fails
+    '/dev-java/icedtea',  # make -j fails
+    '/dev-libs/openssl',  # Makefile force -j1
+    ]
+
+
+def GetDenylist():
+  """Returns list of portage package names to deny.
+
+  The contents should be list of directories like:
+  /dev-libs/nss
+  /sys-fs/mtools
+
+  Returns:
+    a list of denied directories.
+  """
+  return _DENYLIST
+
+
+def IsDenied(path, denylist):
+  """Determine whether a path belongs to some denied package.
+
+  Args:
+    path: path of a portage package
+
+  Returns:
+    True if the portage package has been denied.
+  """
+  for exemption_path in denylist:
+    if path.find(exemption_path) != -1:
+      return True
+  return False
+
+
+def RemoveGomaFromPath():
+  """Remove the goma directory from the search path.
+
+  This will force a non-goma build, as needed for denied packages.
+  """
+  if not os.environ.get('GOMA_DIR'):
+    return
+  goma_dir = os.getenv('GOMA_DIR')
+  paths = os.getenv('PATH').split(os.pathsep)
+  paths = [path for path in paths if not path.startswith(goma_dir)]
+  os.putenv('PATH', os.pathsep.join(paths))
+
+
+def RemoveParallelBuildArguments(args):
+  """Remove parallel-build related arguments.
+  This avoids passing unreasonably-high values into non-goma builds.
+
+  Args:
+    args: the arguments list to modify.
+  """
+
+  # This processing assumes simple '-j ###' or '-j###' formatted arguments.
+  # More complex combinations (e.g. '-vj10') will be ignored entirely.
+  parallel_args = ['-j']
+
+  for idx, arg in enumerate(args):
+    if arg == None:
+      pass  # Already marked this element for removal
+    elif arg in parallel_args:  # '-j ###' format
+      args[idx + 0] = None
+      if idx + 1 < len(args):
+        args[idx + 1] = None
+    elif arg[0:2] in parallel_args:  # '-j###' format
+      args[idx + 0] = None
+
+  args[:] = filter(lambda x: x != None, args)
+  return args
+
+
+def main():
+  args = ['/usr/bin/make']
+  args.extend(sys.argv[1:])
+  denylist = GetDenylist()
+  # Regardless of with/without goma, make is limited to under certain
+  # load average.
+  args[1:1] = ['-l10']
+  if os.getenv('MAKELEVEL'):
+    # In a sub-make, do not modify the flags.
+    pass
+  elif IsDenied(os.getcwd(), denylist) or os.getuid() == 0:
+    # A root user cannot talk to goma.
+    RemoveGomaFromPath()
+    RemoveParallelBuildArguments(args)
+    if os.environ.get('GOMA_DIR'):
+      del os.environ['GOMA_DIR']
+    if os.environ.get('GOMACC_PATH'):
+      del os.environ['GOMACC_PATH']
+  else:
+    # Insert default flags at the beginning of the argument list.
+    # These will be overridden by any user-supplied options.
+    RemoveGomaFromPath()
+    if os.environ.get('GOMA_DIR'):
+      os.environ['GOMACC_PATH'] = os.path.join(os.environ['GOMA_DIR'], 'gomacc')
+      args[1:1] = ['-j100']
+
+  os.execv(args[0], args)
+
+
+if __name__ == '__main__':
+  main()

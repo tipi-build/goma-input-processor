@@ -1,0 +1,81 @@
+# Copied from chromium third_party/boringssl/.
+#
+# Copyright 2014 The Chromium Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("BUILD.generated.gni")
+
+# Config for us and everybody else depending on BoringSSL.
+config("external_config") {
+  include_dirs = [ "src/include" ]
+  if (is_win_gcc) {
+    cflags = [ "-Wno-ignored-qualifiers" ]
+  }
+}
+
+# Config internal to this build file, shared by boringssl and boringssl_fuzzer.
+config("internal_config") {
+  visibility = [ ":*" ]  # Only targets in this file can depend on this.
+  defines = [
+    "BORINGSSL_ALLOW_CXX_RUNTIME",
+    "BORINGSSL_IMPLEMENTATION",
+    "BORINGSSL_NO_STATIC_INITIALIZER",
+    "OPENSSL_SMALL",
+  ]
+  configs = [
+    # TODO: Fix size_t truncations in BoringSSL.
+    # https://crbug.com/429039
+    "//build/config/compiler:no_size_t_to_int_warning",
+  ]
+  if (is_linux) {
+    defines += [ "_XOPEN_SOURCE=700" ]
+  }
+}
+
+config("no_asm_config") {
+  visibility = [ ":*" ]  # Only targets in this file can depend on this.
+  defines = [ "OPENSSL_NO_ASM" ]
+}
+
+if (is_msan || is_win_gcc) {
+  # Disable assembly on MSan and MinGW.
+  #
+  # MSan instrumentation is incompatible with assembly optimizations.
+  # BoringSSL's GAS-compatible assembly knows how to detect MSan, but the NASM
+  # assembly does not, so we check for MSan explicitly.
+  #
+  # MinGW would need to use NASM, but building NASM with MinGW does not
+  # currently work.
+  source_set("boringssl_asm") {
+    visibility = [ ":*" ]  # Only targets in this file can depend on this.
+    public_configs = [ ":no_asm_config" ]
+  }
+} else if (os == "win" && (current_cpu == "x86" || current_cpu == "x64")) {
+  # Windows' x86 and x86_64 assembly is built with NASM.
+  import("//third_party/nasm/nasm_assemble.gni")
+  nasm_assemble("boringssl_asm") {
+    visibility = [ ":*" ]  # Only targets in this file can depend on this.
+    sources = crypto_sources_nasm
+  }
+} else {
+  # All other targets use GAS-compatible assembler. BoringSSL's assembly files
+  # are all wrapped in processor checks for the corresponding target, so there
+  # is no need to add target conditions in the build.
+  source_set("boringssl_asm") {
+    visibility = [ ":*" ]  # Only targets in this file can depend on this.
+    sources = crypto_sources_asm
+    include_dirs = [ "src/include" ]
+  }
+}
+
+static_library("boringssl") {
+  sources = crypto_sources + ssl_sources
+  deps = [ ":boringssl_asm" ]
+
+  public_configs = [ ":external_config" ]
+  configs += [ ":internal_config" ]
+
+  configs -= [ "//build/config/compiler:goma_code" ]
+  configs += [ "//build/config/compiler:no_goma_code" ]
+}

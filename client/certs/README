@@ -1,0 +1,5 @@
+Copyright 2021 Google LLC. All Rights Reserved.
+
+Minimum certificates to connect to google.
+It is provided at https://pki.goog/roots.pem.
+
