@@ -10,40 +10,12 @@
 #include "compiler_proxy_info.h"
 #include "env_flags.h"
 #include "glog/logging.h"
-#include "google/protobuf/stubs/logging.h"
 #include "mypath.h"
 #include "ioutil.h"
 
 GOMA_DECLARE_string(SERVER_HOST);
 GOMA_DECLARE_int32(SERVER_PORT);
 
-namespace {
-
-void ProtobufLogHandler(google::protobuf::LogLevel level,
-                        const char* filename,
-                        int line,
-                        const std::string& message) {
-  // Convert protobuf log level to glog log severity.
-  int severity = google::GLOG_ERROR;
-  switch (level) {
-  case google::protobuf::LOGLEVEL_INFO:
-    severity = google::GLOG_INFO;
-    break;
-  case google::protobuf::LOGLEVEL_WARNING:
-    severity = google::GLOG_WARNING;
-    break;
-  case google::protobuf::LOGLEVEL_ERROR:
-    severity = google::GLOG_ERROR;
-    break;
-  case google::protobuf::LOGLEVEL_FATAL:
-    severity = google::GLOG_FATAL;
-    break;
-  }
-
-  google::LogMessage(filename, line, severity).stream() << message;
-}
-
-}  // anonymous namespace
 
 namespace devtools_goma {
 
@@ -81,9 +53,6 @@ void Init(int argc, char* argv[], const char* envp[]) {
 
 void InitLogging(const char* argv0) {
   google::InitGoogleLogging(argv0);
-  // Sets log hanlder for protobuf/logging so that protobuf outputs log
-  // to where GLOG is outputting.
-  google::protobuf::SetLogHandler(ProtobufLogHandler);
 #ifndef _WIN32
   google::InstallFailureSignalHandler();
 #endif

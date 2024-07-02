@@ -9,6 +9,7 @@
 #include "absl/base/macros.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_replace.h"
+#include "absl/strings/str_cat.h"
 #include "base/path.h"
 #include "client/binutils/elf_parser.h"
 #include "glog/logging.h"

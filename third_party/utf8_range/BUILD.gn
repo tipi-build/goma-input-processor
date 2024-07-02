@@ -1,0 +1,71 @@
+
+import("//build/config/clang/clang.gni")
+
+config("utf8_range_config") {
+  include_dirs = [ "src" ]
+
+  if (is_clang && clang_base_path == default_clang_base_path) {
+    # Only apply this for chromium clang build.
+    cflags = [ "-Wno-implicit-int-float-conversion" ]
+  }
+  if (is_win_gcc) {
+    # Used by "src/absl/debugging/symbolize_win32.inc"
+    libs = [ "dbghelp" ]
+  }
+}
+
+utf8_range_sources = [
+    "src/utf8_range.h",
+    "src/utf8_validity.h", 
+    "src/utf8_validity.cc",  
+]
+
+utf8_range_cflags = []
+if (os == "win" && !is_win_gcc) {
+  utf8_range_cflags = [
+    "/wd4018",  # signed/unsigned mismatch in comparison
+    "/wd4065",  # switch statement contains 'default' but no 'case' labels
+    "/wd4146",  # unary minus operator applied to unsigned type
+    "/wd4244",  # implicit conversion, possible loss of data
+    "/wd4267",  # size_t to int truncation
+    "/wd4291",  # no matching operator delete for a placement new.
+    "/wd4305",  # double to float truncation
+    "/wd4355",  # 'this' used in base member initializer list
+    "/wd4506",  # no definition for inline function (protobuf issue #240)
+    "/wd4309",  # Truncation of constant value.
+    "/wd4838",  # Narrowing conversion. Doesn't seem to be very useful.
+  ]
+}
+
+source_set("utf8_range_headers") {
+    sources = [
+        "src/utf8_range.h",
+        "src/utf8_validity.h", 
+    ]
+}
+
+static_library("utf8_range") {
+  # Prevent people from depending on this outside our file.
+  # visibility = [ ":*" ]
+
+  sources = utf8_range_sources
+  configs += [ ":utf8_range_config" ]
+  configs -= [ "//build/config/compiler:goma_code" ]
+  configs += [
+    "//build/config/compiler:no_goma_code",
+  ]
+  if (os == "win") {
+    configs -= [ "//build/config/win:lean_and_mean" ]
+  }
+  public_configs = [
+    "//third_party:zlib_config",
+
+    # TODO: crbug.com/167187 fix size_t to int truncations.
+    "//build/config/compiler:no_size_t_to_int_warning",
+  ]
+
+  deps = [ "//third_party/abseil" ]
+  public_deps = [ "//third_party/abseil", ":utf8_range_headers" ]
+
+  cflags = utf8_range_cflags
+}

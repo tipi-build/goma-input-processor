@@ -919,16 +919,15 @@ void CompileService::DumpStatsJson(
   // Then, convert statz to json string.
   google::protobuf::util::JsonPrintOptions options;
   // This is necessary, otherwise field whose value is 0 won't be printed.
-  options.always_print_primitive_fields = true;
+  options.always_print_fields_with_no_presence = true;
   if (human_readable == HumanReadability::kHumanReadable) {
     options.add_whitespace = true;
   }
-  google::protobuf::util::Status status =
+  auto status =
       google::protobuf::util::MessageToJsonString(statz, json_string, options);
   if (!status.ok()) {
     LOG(ERROR) << "failed to convert GomaStatzStats to json"
-               << " error_code=" << status.error_code()
-               << " error_message=" << status.error_message();
+               << " error=" << status;
     json_string->clear();
   }
 }
@@ -1544,7 +1543,7 @@ void CompileService::DumpErrorStatus(std::ostringstream* ss) {
   std::string s;
   google::protobuf::util::JsonPrintOptions options;
   options.preserve_proto_field_names = true;
-  google::protobuf::util::MessageToJsonString(error_notices, &s, options);
+  auto _discard = google::protobuf::util::MessageToJsonString(error_notices, &s, options);
   *ss << s << '\n';
 }
 
@@ -1703,7 +1702,7 @@ void CompileService::DumpStatsToFile(const std::string& filename) {
   if (absl::EndsWith(filename, ".json")) {
     google::protobuf::util::JsonPrintOptions options;
     options.preserve_proto_field_names = true;
-    google::protobuf::util::MessageToJsonString(stats, &stats_buf, options);
+    auto _discard = google::protobuf::util::MessageToJsonString(stats, &stats_buf, options);
   } else {
     stats.SerializeToString(&stats_buf);
   }

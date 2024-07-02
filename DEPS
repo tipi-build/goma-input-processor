@@ -13,7 +13,7 @@ deps = {
      # TODO: use released proto including
      # https://github.com/protocolbuffers/protobuf/blob/ee4f2492ea4e7ff120f68a792af870ee30435aa5/src/google/protobuf/io/zero_copy_stream.h#L122
      "client/third_party/protobuf/protobuf":
-     "https://github.com/google/protobuf.git@6aa539bf0195f188ff86efe6fb8bfa2b676cdd46",
+     "https://github.com/google/protobuf.git@d6511091a0cab1ad13f676a02676ad2a0e5eb9ae",
 
      # google-glog v0.5.0
      "client/third_party/glog":
@@ -79,7 +79,11 @@ deps = {
 
      # abseil
      "client/third_party/abseil/src":
-     "https://github.com/abseil/abseil-cpp.git@0064d9db90d32d35e9f9d70e2df4ddf8d0ab1257",
+     "https://github.com/abseil/abseil-cpp.git@4a2c63365eff8823a5221db86ef490e828306f9d",
+
+     # abseil
+     "client/third_party/utf8_range/src":
+     "https://github.com/protocolbuffers/utf8_range.git@1d1ea7e3fedf482d4a12b473c1ed25fe0f371a45",
 
      # google benchmark v1.4.1
      "client/third_party/benchmark/src":

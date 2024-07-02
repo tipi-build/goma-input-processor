@@ -97,9 +97,9 @@ void Counterz::Dump(const std::string& filename) {
   if (absl::EndsWith(filename, ".json")) {
     google::protobuf::util::JsonPrintOptions options;
     options.preserve_proto_field_names = true;
-    google::protobuf::util::MessageToJsonString(counterz, &dump_buf, options);
+    std::ignore = google::protobuf::util::MessageToJsonString(counterz, &dump_buf, options);
   } else {
-    counterz.SerializeToString(&dump_buf);
+    std::ignore = counterz.SerializeToString(&dump_buf);
   }
   if (!WriteStringToFile(dump_buf, filename)) {
     LOG(ERROR) << "failed to dump counterz stats to " << filename;
