@@ -9,11 +9,9 @@ vars = {
 }
 
 deps = {
-     # protobuf > 3.15.6
-     # TODO: use released proto including
-     # https://github.com/protocolbuffers/protobuf/blob/ee4f2492ea4e7ff120f68a792af870ee30435aa5/src/google/protobuf/io/zero_copy_stream.h#L122
+     # protobuf 28.2
      "client/third_party/protobuf/protobuf":
-     "https://github.com/google/protobuf.git@d6511091a0cab1ad13f676a02676ad2a0e5eb9ae",
+     "https://github.com/google/protobuf.git@9fff46d7327c699ef970769d5c9fd0e44df08fc7",
 
      # google-glog v0.5.0
      "client/third_party/glog":
