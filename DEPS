@@ -9,9 +9,9 @@ vars = {
 }
 
 deps = {
-     # protobuf 28.2
+     # protobuf 29.1
      "client/third_party/protobuf/protobuf":
-     "https://github.com/google/protobuf.git@9fff46d7327c699ef970769d5c9fd0e44df08fc7",
+     "https://github.com/google/protobuf.git@796e49f6ca82f763d1087d2ff7355d2f0d7b71b1",
 
      # google-glog v0.5.0
      "client/third_party/glog":

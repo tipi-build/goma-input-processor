@@ -95,20 +95,10 @@ config("using_proto") {
 
 nobase_include_headers = [
   "protobuf/src/google/protobuf/stubs/callback.h",
-  "protobuf/src/google/protobuf/stubs/bytestream.h",
-  "protobuf/src/google/protobuf/stubs/casts.h",
   "protobuf/src/google/protobuf/stubs/common.h",
-  "protobuf/src/google/protobuf/stubs/hash.h",
-  "protobuf/src/google/protobuf/stubs/logging.h",
-  "protobuf/src/google/protobuf/stubs/macros.h",
-  "protobuf/src/google/protobuf/stubs/mutex.h",
-  "protobuf/src/google/protobuf/stubs/once.h",
   "protobuf/src/google/protobuf/stubs/platform_macros.h",
   "protobuf/src/google/protobuf/stubs/port.h",
-  "protobuf/src/google/protobuf/stubs/status.h",
-  "protobuf/src/google/protobuf/stubs/stl_util.h",
-  "protobuf/src/google/protobuf/stubs/stringpiece.h",
-  "protobuf/src/google/protobuf/stubs/template_util.h",
+  "protobuf/src/google/protobuf/stubs/status_macros.h",
   "protobuf/src/google/protobuf/raw_ptr.h",
   "protobuf/src/google/protobuf/reflection_mode.h",
   "protobuf/src/google/protobuf/feature_resolver.h",
@@ -150,6 +140,7 @@ nobase_include_headers = [
   "protobuf/src/google/protobuf/reflection.h",
   "protobuf/src/google/protobuf/reflection_ops.h",
   "protobuf/src/google/protobuf/repeated_field.h",
+  "protobuf/src/google/protobuf/repeated_ptr_field.h",
   "protobuf/src/google/protobuf/service.h",
   "protobuf/src/google/protobuf/source_context.pb.h",
   "protobuf/src/google/protobuf/struct.pb.h",
@@ -180,6 +171,7 @@ nobase_include_headers = [
   "protobuf/src/google/protobuf/compiler/csharp/csharp_names.h",
   "protobuf/src/google/protobuf/compiler/java/generator.h",
   "protobuf/src/google/protobuf/compiler/java/names.h",
+  "protobuf/src/google/protobuf/compiler/kotlin/generator.h",
   "protobuf/src/google/protobuf/compiler/js/js_generator.h",
   "protobuf/src/google/protobuf/compiler/js/well_known_types_embed.h",
   "protobuf/src/google/protobuf/compiler/objectivec/objectivec_generator.h",
@@ -284,6 +276,35 @@ static_library("protobuf_lite") {
     "//build/config/compiler:no_size_t_to_int_warning",
   ]
 
+  public_deps = [ "//third_party/abseil", "//third_party/utf8_range" ]
+
+  cflags = protobuf_lite_cflags
+}
+
+static_library("upb_common") {
+  sources = [
+    "protobuf/upb_generator/common/names.h",
+    "protobuf/upb_generator/common/names.cc",
+  ]
+
+  # goma
+  configs -= [ "//build/config/compiler:goma_code" ]
+  configs += [
+    "//build/config/compiler:no_goma_code",
+
+    # Must be after no_goma_code for warning flags to be ordered
+    # correctly.
+    ":protobuf_warnings",
+  ]
+
+  if (os == "win") {
+    configs -= [ "//build/config/win:lean_and_mean" ]
+  }
+
+  public_configs = [
+    ":protobuf_config",
+  ]
+
   public_deps = [ "//third_party/abseil", "//third_party/utf8_range"  ]
 
   # deps = [
@@ -292,6 +313,40 @@ static_library("protobuf_lite") {
 
   cflags = protobuf_lite_cflags
 }
+
+static_library("upb_minitable") {
+  sources = [
+    "protobuf/upb_generator/minitable/names.h",
+    "protobuf/upb_generator/minitable/names.cc",
+    "protobuf/upb_generator/minitable/names_internal.h",
+    "protobuf/upb_generator/minitable/names_internal.cc",
+    "protobuf/upb/port/atomic.h",
+    "protobuf/upb/port/vsnprintf_compat.h",
+  ]
+
+  # goma
+  configs -= [ "//build/config/compiler:goma_code" ]
+  configs += [
+    "//build/config/compiler:no_goma_code",
+
+    # Must be after no_goma_code for warning flags to be ordered
+    # correctly.
+    ":protobuf_warnings",
+  ]
+
+  if (os == "win") {
+    configs -= [ "//build/config/win:lean_and_mean" ]
+  }
+
+  public_configs = [
+    ":protobuf_config",
+  ]
+
+  public_deps = [ "//third_party/abseil", "//third_party/utf8_range", ":upb_common"  ]
+
+  cflags = protobuf_lite_cflags
+}
+
 
 # This is the full, heavy protobuf lib that's needed for c++ .protos that don't
 # specify the LITE_RUNTIME option. The protocol compiler itself (protoc) falls
@@ -366,10 +421,42 @@ static_library("protobuf_full") {
     "//build/config/compiler:no_size_t_to_int_warning",
   ]
 
-  deps = [ "//third_party:zlib", "//third_party/abseil", "//third_party/utf8_range"  ]
-  public_deps = [ "//third_party/abseil" , "//third_party/utf8_range" ]
+  deps = [ "//third_party:zlib", "//third_party/abseil", "//third_party/utf8_range", ":upb_minitable"  ]
+  public_deps = [ "//third_party/abseil" , "//third_party/utf8_range", ":upb_minitable" ]
 
   cflags = protobuf_lite_cflags
+}
+
+static_library("protoc_lib_kotlin") {
+    sources = [
+      "protobuf/src/google/protobuf/compiler/kotlin/file.cc",
+      "protobuf/src/google/protobuf/compiler/kotlin/file.h",
+      "protobuf/src/google/protobuf/compiler/kotlin/generator.cc",
+      "protobuf/src/google/protobuf/compiler/kotlin/generator.h",
+      "protobuf/src/google/protobuf/compiler/kotlin/message.cc",
+      "protobuf/src/google/protobuf/compiler/kotlin/message.h",
+    ]
+
+    deps = []
+
+    configs -= [ "//build/config/compiler:goma_code" ]
+    configs += [
+      "//build/config/compiler:no_goma_code",
+
+      # Must be after no_chromium_code for warning flags to be ordered
+      # correctly.
+      ":protobuf_warnings",
+    ]
+    if (os == "win") {
+      # This is defined internally, don't warn on duplicate.
+      configs -= [ "//build/config/win:lean_and_mean" ]
+    }
+
+    public_configs = [ ":protobuf_config" ]
+
+    cflags = protobuf_lite_cflags
+
+    public_deps = [ ":protobuf_full" ]
 }
 
 static_library("protoc_lib_java") {
@@ -386,8 +473,6 @@ static_library("protoc_lib_java") {
       "protobuf/src/google/protobuf/compiler/java/generator.h",
       "protobuf/src/google/protobuf/compiler/java/generator_common.h",
       "protobuf/src/google/protobuf/compiler/java/generator_factory.h",
-      "protobuf/src/google/protobuf/compiler/java/kotlin_generator.cc",
-      "protobuf/src/google/protobuf/compiler/java/kotlin_generator.h",
       "protobuf/src/google/protobuf/compiler/java/helpers.cc",
       "protobuf/src/google/protobuf/compiler/java/helpers.h",
       "protobuf/src/google/protobuf/compiler/java/internal_helpers.cc",
@@ -704,10 +789,13 @@ static_library("protoc_lib_rust") {
     "protobuf/src/google/protobuf/compiler/rust/accessors/default_value.h",
     "protobuf/src/google/protobuf/compiler/rust/accessors/map.cc",
     "protobuf/src/google/protobuf/compiler/rust/accessors/repeated_field.cc",
+    "protobuf/src/google/protobuf/compiler/rust/accessors/singular_cord.cc",
     "protobuf/src/google/protobuf/compiler/rust/accessors/singular_message.cc",
     "protobuf/src/google/protobuf/compiler/rust/accessors/singular_scalar.cc",
     "protobuf/src/google/protobuf/compiler/rust/accessors/singular_string.cc",
     "protobuf/src/google/protobuf/compiler/rust/accessors/unsupported_field.cc",
+    "protobuf/src/google/protobuf/compiler/rust/accessors/with_presence.cc",
+    "protobuf/src/google/protobuf/compiler/rust/accessors/with_presence.h",
     "protobuf/src/google/protobuf/compiler/rust/context.cc",
     "protobuf/src/google/protobuf/compiler/rust/context.h",
     "protobuf/src/google/protobuf/compiler/rust/crate_mapping.cc",
@@ -728,8 +816,8 @@ static_library("protoc_lib_rust") {
     "protobuf/src/google/protobuf/compiler/rust/rust_field_type.h",
     "protobuf/src/google/protobuf/compiler/rust/rust_keywords.cc",
     "protobuf/src/google/protobuf/compiler/rust/rust_keywords.h",
-    "protobuf/upb_generator/mangle.cc",
-    "protobuf/upb_generator/mangle.h",
+    "protobuf/src/google/protobuf/compiler/rust/upb_helpers.cc",
+    "protobuf/src/google/protobuf/compiler/rust/upb_helpers.h",
     "protobuf/src/google/protobuf/testing/file.cc",
     "protobuf/src/google/protobuf/testing/file.h",
     ]
@@ -843,6 +931,7 @@ static_library("protoc_lib_csharp") {
 static_library("protoc_lib") {
   sources = [
     "protobuf/src/google/protobuf/compiler/code_generator.cc",
+    "protobuf/src/google/protobuf/compiler/code_generator_lite.cc",
     "protobuf/src/google/protobuf/compiler/command_line_interface.cc",
     "protobuf/src/google/protobuf/compiler/plugin.cc",
     "protobuf/src/google/protobuf/compiler/plugin.pb.cc",
@@ -868,6 +957,7 @@ static_library("protoc_lib") {
   deps = [
     ":protoc_lib_cpp",
     ":protoc_lib_java",
+    ":protoc_lib_kotlin",
     ":protoc_lib_objectivec",
     ":protoc_lib_python",
     ":protoc_lib_php",

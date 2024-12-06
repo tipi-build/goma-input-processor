@@ -24,6 +24,7 @@
 #include "absl/strings/ascii.h"
 #include "absl/types/optional.h"
 #include "google/protobuf/repeated_field.h"
+#include "google/protobuf/stubs/port.h"
 
 namespace devtools_goma {
 
