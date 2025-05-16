@@ -20,11 +20,13 @@ class CppInput {
            const std::string& include_guard_ident,
            const std::string& filepath,
            const std::string& directory,
-           int include_dir_index)
+           int include_dir_index,
+           size_t line_in_file)
       : filepath_(filepath),
         directory_(directory),
         include_dir_index_(include_dir_index),
         directive_pos_(0),
+        line_in_file_(line_in_file),
         directives_(directives),
         include_guard_ident_(include_guard_ident) {}
 
@@ -33,9 +35,20 @@ class CppInput {
   int include_dir_index() const { return include_dir_index_; }
 
   size_t directive_pos() const { return directive_pos_; }
+  size_t line_in_file() const { return line_in_file_; }
 
   const std::string& include_guard_ident() const {
     return include_guard_ident_;
+  }
+
+  const CppDirective* CurrentDirective() const {
+    const CppDirectiveList& directives = *directives_;
+    auto current = directive_pos_ - 1;
+    if ((current > 0) && (current < directives.size())) {
+      return directives[current].get();
+    } else {
+      return nullptr;
+    }
   }
 
   const CppDirective* NextDirective() {
@@ -53,6 +66,7 @@ class CppInput {
   const int include_dir_index_;
 
   size_t directive_pos_;
+  size_t line_in_file_ = 0;
   const CppDirectiveList* directives_;
   const std::string include_guard_ident_;
 

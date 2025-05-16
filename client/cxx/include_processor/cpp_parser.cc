@@ -90,7 +90,7 @@ CppParser::CppParser()
   SharedCppDirectives directives(
       CppDirectiveParser::ParseFromString("", "<empty>"));
   last_input_ = absl::make_unique<CppInput>(directives.get(), "", "<empty>",
-                                            "<empty>", -1);
+                                            "<empty>", -1, 0);
   input_protects_.push_back(std::move(directives));
 }
 
@@ -297,7 +297,7 @@ void CppParser::AddStringInput(const std::string& content,
 
   // need to protect.
   inputs_.emplace_back(new Input(directives.get(), "", pathname, "(string)",
-                                 kCurrentDirIncludeDirIndex));
+                                 kCurrentDirIncludeDirIndex, (directives->size() > 0) ? directives->front()->line_in_file() : 0));
   input_protects_.push_back(std::move(directives));
 }
 
@@ -339,7 +339,7 @@ void CppParser::AddFileInput(IncludeItem include_item,
 
   inputs_.emplace_back(new Input(include_item.directives().get(),
                                  include_item.include_guard_ident(), filepath,
-                                 directory, include_dir_index));
+                                 directory, include_dir_index, (include_item.directives()->size() > 0) ? include_item.directives()->front()->line_in_file() : 0));
   input_protects_.push_back(include_item.directives());
   VLOG(2) << "Including file: " << filepath;
 }
@@ -347,7 +347,7 @@ void CppParser::AddFileInput(IncludeItem include_item,
 void CppParser::AddPreparsedDirectivesInput(SharedCppDirectives directives) {
   CHECK(directives);
   inputs_.emplace_back(new Input(directives.get(), "", "<preparsed>",
-                                 "<preparsed>", kCurrentDirIncludeDirIndex));
+                                 "<preparsed>", kCurrentDirIncludeDirIndex, (directives->size() > 0) ? directives->front()->line_in_file() : 0));
   input_protects_.push_back(std::move(directives));
 }
 
@@ -366,7 +366,11 @@ std::string CppParser::DebugStringPrefix() {
   str.append(input()->filepath());
   str.append(":");
   // TODO: This is not line position.
-  str.append(std::to_string(input()->directive_pos() + 1));
+  if (input()->CurrentDirective() != nullptr) {
+    str.append(std::to_string(input()->CurrentDirective()->line_in_file()));
+  } else {
+    str.append(std::to_string(input()->line_in_file()));
+  }
   str.append(")");
   return str;
 }

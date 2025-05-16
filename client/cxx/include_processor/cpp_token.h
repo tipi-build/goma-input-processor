@@ -149,6 +149,7 @@ struct CppToken {
     int64_t int_value;
     size_t param_index;
   } v;
+  size_t line_in_file = 0;
 };
 
 inline void CppToken::Append(const char* str, size_t size) {

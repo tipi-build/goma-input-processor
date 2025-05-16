@@ -45,6 +45,8 @@ class CppDirective {
 
   CppDirectiveType type() const { return directive_type_; }
   int position() const { return position_; }
+  size_t line_in_file() const { return line_in_file_; }
+  void set_line_in_file(size_t line_in_file) { line_in_file_ = line_in_file; }
 
   // Returns directive type as string.
   // e.g. "if", "else", "define".
@@ -74,6 +76,7 @@ class CppDirective {
 
   const CppDirectiveType directive_type_;
   int position_;
+  size_t line_in_file_ = 0;
 };
 
 // base class of include, include_next and import.

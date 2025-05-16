@@ -368,6 +368,8 @@ bool CppDirectiveParser::Parse(const Content& content,
   while (CppTokenizer::SkipUntilDirective(&stream, &error_reason)) {
     stream.SkipWhiteSpaces();
 
+    auto current_line = stream.line();
+
     absl::InlinedVector<char, 32> directive;
     while (true) {
       int c = stream.GetCharWithBackslashHandling();
@@ -384,6 +386,7 @@ bool CppDirectiveParser::Parse(const Content& content,
     // found directive.
     if (std::unique_ptr<CppDirective> p = ParseDirective(
             absl::string_view(directive.data(), directive.size()), &stream)) {
+      p->set_line_in_file(current_line);
       p->set_position(directives.size() + 1);
       directives.push_back(std::move(p));
     }
