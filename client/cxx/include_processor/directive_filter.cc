@@ -294,8 +294,9 @@ size_t DirectiveFilter::FilterOnlyDirectives(
       dst += next_line_head - src;
       src = next_line_head;
     } else {
-      *dst++ = '\n';
-      src = DirectiveFilter::NextLineHead(src, end);
+      const char* next_line_head = DirectiveFilter::NextLineHead(src, end);
+      *dst++ = '\n'; // Keep track of skipped line
+      src = next_line_head;
     }
   }
 
