@@ -42,7 +42,7 @@ int_value Mod(int_value v1, int_value v2) {
     return r;
   }
   if (r.unsigned_) {
-    r.value = static_cast<uint64_t>(v1.value) / static_cast<uint64_t>(v2.value);
+    r.value = static_cast<uint64_t>(v1.value) % static_cast<uint64_t>(v2.value);
   } else {
     r.value = v1.value % v2.value;
   }
