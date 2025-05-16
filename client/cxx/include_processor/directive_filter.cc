@@ -220,7 +220,9 @@ size_t DirectiveFilter::RemoveComments(const char* src, const char* end,
     if (*(src + 1) == '*') {
       const char* end_comment = nullptr;
       const char* pos = src + 2;
+      size_t newlines_in_comment = 0;
       while (pos + 2 <= end) {
+        if (*pos == '\n') { ++newlines_in_comment; }
         if (*pos == '*' && *(pos + 1) == '/') {
           end_comment = pos;
           break;
@@ -235,8 +237,13 @@ size_t DirectiveFilter::RemoveComments(const char* src, const char* end,
         return dst - original_dst;
       }
 
+
       src = end_comment + 2;
       *dst++ = ' ';
+
+      for (size_t newlines = 0; newlines < newlines_in_comment; newlines++) {
+       *dst++ = '\n';
+      }
       continue;
     }
 
@@ -287,6 +294,7 @@ size_t DirectiveFilter::FilterOnlyDirectives(
       dst += next_line_head - src;
       src = next_line_head;
     } else {
+      *dst++ = '\n';
       src = DirectiveFilter::NextLineHead(src, end);
     }
   }
