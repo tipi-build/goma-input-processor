@@ -9,6 +9,7 @@
 
 #include <memory>
 #include <vector>
+#include <algorithm>
 
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
@@ -32,13 +33,13 @@ std::unique_ptr<Content> DirectiveFilter::MakeFilteredContent(
                                 buffer.get());
 
   length = RemoveEscapedNewLine(buffer.get(), buffer.get() + length,
-                                buffer.get());
+                                buffer.get(), true);
 
   return Content::CreateFromBuffer(buffer.get(), length);
 }
 
 // static
-const char* DirectiveFilter::SkipSpaces(const char* pos, const char* end) {
+const char* DirectiveFilter::SkipSpaces(const char* pos, const char* end, size_t* skipped_newlines) {
   while (pos != end) {
     if (*pos == ' ' || *pos == '\t') {
       ++pos;
@@ -47,6 +48,7 @@ const char* DirectiveFilter::SkipSpaces(const char* pos, const char* end) {
 
     int newline_byte = IsEscapedNewLine(pos, end);
     if (newline_byte > 0) {
+      if (skipped_newlines!=nullptr) { (*skipped_newlines)++; }
       pos += newline_byte;
       continue;
     }
@@ -58,16 +60,22 @@ const char* DirectiveFilter::SkipSpaces(const char* pos, const char* end) {
 }
 
 /* static */
-const char* DirectiveFilter::NextLineHead(const char* pos, const char* end) {
+const char* DirectiveFilter::NextLineHead(const char* pos, const char* end, size_t* skipped_escaped_and_actual_newlines, bool* reached_eof) {
+  if (reached_eof != nullptr) *reached_eof = true;
   while (pos != end) {
-    if (*pos == '\n')
+    if (*pos == '\n') {
+      if (skipped_escaped_and_actual_newlines!=nullptr) { (*skipped_escaped_and_actual_newlines)++; }
+      if (reached_eof != nullptr) *reached_eof = false;
       return pos + 1;
+    }
 
     int newline_byte = IsEscapedNewLine(pos, end);
-    if (newline_byte)
+    if (newline_byte) {
+      if (skipped_escaped_and_actual_newlines!=nullptr) { (*skipped_escaped_and_actual_newlines)++; }
       pos += newline_byte;
-    else
+    } else {
       pos += 1;
+    }
   }
 
   return end;
@@ -194,6 +202,15 @@ size_t DirectiveFilter::RemoveComments(const char* src, const char* end,
       VLOG(5) << "raw string literal=" << literal;
       if (literal.find('#') != absl::string_view::npos) {
         src += num;
+
+        // When we skip it add as many newlines as they were in it, add 
+        // them as escaped newlines, that will properly be resolved to 
+        // newlines by the later RemoveEscapedNewLine pass
+        auto newlines_in_literal_found = std::count(literal.begin(), literal.end(), '\n');
+        for (size_t newlines = 0; newlines < newlines_in_literal_found; newlines++) {
+          *dst++ = '\\';
+          *dst++ = '\n';
+        }
         continue;
       }
       // copy it as is.
@@ -222,6 +239,7 @@ size_t DirectiveFilter::RemoveComments(const char* src, const char* end,
       const char* pos = src + 2;
       size_t newlines_in_comment = 0;
       while (pos + 2 <= end) {
+
         if (*pos == '\n') { ++newlines_in_comment; }
         if (*pos == '*' && *(pos + 1) == '/') {
           end_comment = pos;
@@ -242,15 +260,22 @@ size_t DirectiveFilter::RemoveComments(const char* src, const char* end,
       *dst++ = ' ';
 
       for (size_t newlines = 0; newlines < newlines_in_comment; newlines++) {
-       *dst++ = '\n';
+        // Replace by escaped newline, that will be replaced by newlines
+        // later on because we can hence support multiline comments in
+        // directives.
+        *dst++ = '\\';
+        *dst++ = '\n'; 
       }
       continue;
     }
 
     // One-line comment starts.
     if (*(src + 1) == '/') {
-      src = DirectiveFilter::NextLineHead(src + 2, end);
-      *dst++ = '\n';
+      size_t skipped_escaped_and_actual_newlines = 0;
+      src = DirectiveFilter::NextLineHead(src + 2, end, &skipped_escaped_and_actual_newlines);
+      for (size_t newlines = 0; newlines < skipped_escaped_and_actual_newlines; newlines++) {
+        *dst++ = '\n';
+      }
       continue;
     }
 
@@ -262,18 +287,19 @@ size_t DirectiveFilter::RemoveComments(const char* src, const char* end,
 
 // static
 size_t DirectiveFilter::RemoveEscapedNewLine(
-    const char* src, const char* end, char* dst) {
+    const char* src, const char* end, char* dst, bool reinsert_as_newlines) {
   const char* initial_dst = dst;
-
   while (src != end) {
     int newline_bytes = IsEscapedNewLine(src, end);
     if (newline_bytes == 0) {
       *dst++ = *src++;
     } else {
       src += newline_bytes;
+      if (reinsert_as_newlines) {
+        *dst++ = '\n'; 
+      }
     }
   }
-
   return dst - initial_dst;
 }
 
@@ -282,23 +308,45 @@ size_t DirectiveFilter::FilterOnlyDirectives(
     const char* src, const char* end, char* dst) {
   const char* const original_dst = dst;
 
+  size_t newlines_skipped = 0;
   while (src != end) {
-    src = DirectiveFilter::SkipSpaces(src, end);
+    src = DirectiveFilter::SkipSpaces(src, end, &newlines_skipped );
+
+    // We add empty lines pre-directive to keep debug output line positions readable.
+    for (size_t newlines = 0; newlines < newlines_skipped; newlines++) {
+      *dst++ = '\n'; 
+    }
+    newlines_skipped = 0; // reset, we might enter a directive
 
     if (src != end && *src == '#') {
       *dst++ = *src++;
       // Omit spaces after '#' in directive.
-      src = DirectiveFilter::SkipSpaces(src, end);
-      const char* next_line_head = DirectiveFilter::NextLineHead(src, end);
-      memmove(dst, src, next_line_head - src);
-      dst += next_line_head - src;
+      src = DirectiveFilter::SkipSpaces(src, end, &newlines_skipped);
+      bool reached_eof = false;
+      const char* next_line_head = DirectiveFilter::NextLineHead(src, end, &newlines_skipped, &reached_eof);
+      auto length = RemoveEscapedNewLine(src, next_line_head, const_cast<char*>(src), false);
+      memmove(dst, src, length);
+      dst += length;
       src = next_line_head;
+
+      // Ignore the line head we capture in the memmove but remove any escaped new line on last line of file 
+      // We add empty lines post-directive to keep debug output line positions readable.
+      for (size_t newlines = ((reached_eof) ? 0 : 1); newlines < newlines_skipped; newlines++) {
+        *dst++ = '\n'; 
+      }
+      newlines_skipped = 0; // reset, we leave the directive
+
     } else {
-      const char* next_line_head = DirectiveFilter::NextLineHead(src, end);
-      *dst++ = '\n'; // Keep track of skipped line
+      size_t skipped_escaped_and_actual_newlines = 0;
+      const char* next_line_head = DirectiveFilter::NextLineHead(src, end, &skipped_escaped_and_actual_newlines);
+      for (size_t newlines = 0; newlines < skipped_escaped_and_actual_newlines; newlines++) {
+        *dst++ = '\n'; 
+      }
       src = next_line_head;
     }
   }
+
+
 
   return dst - original_dst;
 }

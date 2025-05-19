@@ -27,11 +27,11 @@ class DirectiveFilter {
  private:
   // Returns the pointer to the next non-space character. If nothing, |end| will
   // be returned.
-  static const char* SkipSpaces(const char* pos, const char* end);
+  static const char* SkipSpaces(const char* pos, const char* end, size_t* skipped_newlines=nullptr);
 
   // Returns the pointer to the head of the logical next line.
   // A escaped newline (\\\n) is considered.
-  static const char* NextLineHead(const char* pos, const char* end);
+  static const char* NextLineHead(const char* pos, const char* end, size_t* skipped_escaped_and_actual_newlines=nullptr, bool* reached_eof=nullptr);
 
   // Capture raw string literal beginning with |pos|.
   // Returns how many bytes are captured.
@@ -57,7 +57,7 @@ class DirectiveFilter {
   // |dst| should points at least (end - src) bytes of memory.
   // The size of copied byte is returned.
   static size_t RemoveEscapedNewLine(const char* src, const char* end,
-                                     char* dst);
+                                     char* dst, bool reinsert_as_newlines);
 
   // Removes comments and non-directive lines from |src|. It's OK
   // if |src| and |dst| are the same. |dst| should points at least
