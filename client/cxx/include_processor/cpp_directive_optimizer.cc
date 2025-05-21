@@ -127,16 +127,18 @@ void CppDirectiveOptimizer::Optimize(CppDirectiveList* directives) {
           ifd.tokens()[1].IsPuncChar('(') &&
           ifd.tokens()[2].type == CppToken::IDENTIFIER &&
           ifd.tokens()[3].IsPuncChar(')')) {
-        result.emplace_back(
-            new CppDirectiveIfdef(ifd.tokens()[2].string_value));
+        auto* optimized_cpp_directive = new CppDirectiveIfdef(ifd.tokens()[2].string_value);
+        optimized_cpp_directive->set_line_in_file(d->line_in_file());
+        result.emplace_back(optimized_cpp_directive);
         ++converted;
         continue;
       }
 
       if (ifd.tokens().size() == 2 && ifd.tokens()[0].IsIdentifier("defined") &&
           ifd.tokens()[1].type == CppToken::IDENTIFIER) {
-        result.emplace_back(
-            new CppDirectiveIfdef(ifd.tokens()[1].string_value));
+        auto* optimized_cpp_directive = new CppDirectiveIfdef(ifd.tokens()[1].string_value);
+        optimized_cpp_directive->set_line_in_file(d->line_in_file());
+        result.emplace_back(optimized_cpp_directive);
         ++converted;
         continue;
       }
@@ -148,8 +150,9 @@ void CppDirectiveOptimizer::Optimize(CppDirectiveList* directives) {
           ifd.tokens()[2].IsPuncChar('(') &&
           ifd.tokens()[3].type == CppToken::IDENTIFIER &&
           ifd.tokens()[4].IsPuncChar(')')) {
-        result.emplace_back(
-            new CppDirectiveIfndef(ifd.tokens()[3].string_value));
+        auto* optimized_cpp_directive = new CppDirectiveIfndef(ifd.tokens()[3].string_value);
+        optimized_cpp_directive->set_line_in_file(d->line_in_file());
+        result.emplace_back(optimized_cpp_directive);
         ++converted;
         continue;
       }
@@ -157,8 +160,9 @@ void CppDirectiveOptimizer::Optimize(CppDirectiveList* directives) {
       if (ifd.tokens().size() == 3 && ifd.tokens()[0].IsPuncChar('!') &&
           ifd.tokens()[1].IsIdentifier("defined") &&
           ifd.tokens()[2].type == CppToken::IDENTIFIER) {
-        result.emplace_back(
-            new CppDirectiveIfndef(ifd.tokens()[2].string_value));
+        auto* optimized_cpp_directive = new CppDirectiveIfndef(ifd.tokens()[2].string_value);
+        optimized_cpp_directive->set_line_in_file(d->line_in_file());
+        result.emplace_back(optimized_cpp_directive);
         ++converted;
         continue;
       }

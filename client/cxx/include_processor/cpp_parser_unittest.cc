@@ -112,7 +112,7 @@ TEST(CppParserTest, DontCrashWithEmptyInclude) {
   cpp_parser.set_error_observer(&err_observer);
   cpp_parser.ProcessDirectives();
   ASSERT_EQ(1U, err_observer.errors().size());
-  EXPECT_EQ("CppParser((string):2) "
+  EXPECT_EQ("CppParser((string):1) "
             "#include expects \"filename\" or <filename>",
             err_observer.errors()[0]);
 }
@@ -130,11 +130,11 @@ TEST(CppParserTest, DontCrashWithEmptyHasInclude) {
   cpp_parser.ProcessDirectives();
   ASSERT_EQ(3U, err_observer.errors().size());
   EXPECT_TRUE(
-      absl::StartsWith(err_observer.errors()[0], "CppParser((string):2) "));
+      absl::StartsWith(err_observer.errors()[0], "CppParser((string):1) "));
   EXPECT_TRUE(
-      absl::StartsWith(err_observer.errors()[1], "CppParser((string):4) "));
+      absl::StartsWith(err_observer.errors()[1], "CppParser((string):3) "));
   EXPECT_TRUE(
-      absl::StartsWith(err_observer.errors()[2], "CppParser((string):6) "));
+      absl::StartsWith(err_observer.errors()[2], "CppParser((string):5) "));
 }
 
 TEST(CppParserTest, HasFeatureResultValue) {
@@ -445,7 +445,7 @@ TEST(CppParserTest, ClangExtendedCheckMacro) {
 
   // TODO: I feel this is a change detection test...
   ASSERT_EQ(1U, err_observer.errors().size()) << err_observer.errors();
-  EXPECT_EQ("CppParser((string):5) "
+  EXPECT_EQ("CppParser((string):4) "
             "__has_cpp_attribute expects an identifier",
             err_observer.errors()[0]);
 }
@@ -518,12 +518,14 @@ TEST(CppParserTest, DontCrashWithEmptyTokenInCheckMacro) {
   constexpr unsigned kNumExpectedErrors = 21U;
   ASSERT_EQ(kNumExpectedErrors, err_observer.errors().size())
       << err_observer.errors();
+  size_t line_in_file = 1;
   for (int i = 0; i < kNumExpectedErrors; ++i) {
     std::string error_prefix(
-        absl::StrCat("CppParser((string):", (i + 1) * 2, ") "));
+        absl::StrCat("CppParser((string):", line_in_file, ") "));
     EXPECT_TRUE(absl::StartsWith(err_observer.errors()[i], error_prefix))
         << "error=" << err_observer.errors()[i]
         << " expect prefix=" << error_prefix;
+    line_in_file += 2;
   }
 }
 
@@ -560,16 +562,16 @@ TEST(CppParserTest, ExpandMacro) {
       << absl::StrJoin(err_observer.errors(), "\n");
   // TODO: line number is #endif line that just after #if that
   // error happened?
-  EXPECT_EQ("CppParser((string):5) "  // M(x)
+  EXPECT_EQ("CppParser((string):4) "  // M(x)
             "macro argument number mismatching with the parameter list",
             err_observer.errors()[0]);
-  EXPECT_EQ("CppParser((string):19) "  // M2()
+  EXPECT_EQ("CppParser((string):18) "  // M2()
             "macro argument number mismatching with the parameter list",
             err_observer.errors()[1]);
-  EXPECT_EQ("CppParser((string):21) "  // M2(1)
+  EXPECT_EQ("CppParser((string):20) "  // M2(1)
             "macro argument number mismatching with the parameter list",
             err_observer.errors()[2]);
-  EXPECT_EQ("CppParser((string):23) "  // M2(1,,1)
+  EXPECT_EQ("CppParser((string):22) "  // M2(1,,1)
             "macro argument number mismatching with the parameter list",
             err_observer.errors()[3]);
 }

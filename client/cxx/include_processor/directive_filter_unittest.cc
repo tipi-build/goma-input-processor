@@ -179,7 +179,7 @@ TEST_F(DirectiveFilterTest, RemovesOnelineCommentContainingBlockCommentStart2) {
       DirectiveFilter::MakeFilteredContent(*content));
 
   EXPECT_EQ(
-      "", std::string(filtered->buf(), filtered->buf_end() - filtered->buf()));
+      "\n", std::string(filtered->buf(), filtered->buf_end() - filtered->buf()));
 }
 
 TEST_F(DirectiveFilterTest, RemovesComplexBlockComment) {
@@ -217,7 +217,7 @@ TEST_F(DirectiveFilterTest, RemoveRawStringLiteralWithDirective) {
   std::unique_ptr<Content> filtered(
       DirectiveFilter::MakeFilteredContent(*content));
 
-  EXPECT_EQ("", absl::string_view(filtered->buf(),
+  EXPECT_EQ("\n\n\n\n\n\n\n\n\n", absl::string_view(filtered->buf(),
                                   filtered->buf_end() - filtered->buf()));
 }
 
@@ -232,6 +232,7 @@ TEST_F(DirectiveFilterTest, FilterDirectives) {
 
   std::string expected =
       "#include <iostream>\n"
+      "\n"
       "#include <iomanip>\n";
 
   EXPECT_EQ(expected, std::string(filtered->buf(),
@@ -246,7 +247,7 @@ TEST_F(DirectiveFilterTest, DirectiveIsDividedWithBackslashAndLF) {
   std::unique_ptr<Content> filtered(
       DirectiveFilter::MakeFilteredContent(*content));
 
-  std::string expected = "#include <iostream>";
+  std::string expected = "#include <iostream>\n";
 
   EXPECT_EQ(expected, std::string(filtered->buf(),
                                   filtered->buf_end() - filtered->buf()));
@@ -260,7 +261,7 @@ TEST_F(DirectiveFilterTest, DirectiveIsDividedWithBackslashAndLFLF) {
   std::unique_ptr<Content> filtered(
       DirectiveFilter::MakeFilteredContent(*content));
 
-  std::string expected = "#include <iostream>";
+  std::string expected = "#include <iostream>\n\n";
 
   EXPECT_EQ(expected, std::string(filtered->buf(),
                                   filtered->buf_end() - filtered->buf()));
@@ -274,7 +275,7 @@ TEST_F(DirectiveFilterTest, DirectiveIsDividedWithBackslashAndCRLF) {
   std::unique_ptr<Content> filtered(
       DirectiveFilter::MakeFilteredContent(*content));
 
-  std::string expected = "#include <iostream>";
+  std::string expected = "#include <iostream>\n";
 
   EXPECT_EQ(expected, std::string(filtered->buf(),
                                   filtered->buf_end() - filtered->buf()));
@@ -289,7 +290,7 @@ TEST_F(DirectiveFilterTest, EmptyLineAndBackslashLFBeforeDirective) {
       DirectiveFilter::MakeFilteredContent(*content));
 
   EXPECT_EQ(
-      "#include <iostream>",
+      "\n#include <iostream>",
       std::string(filtered->buf(), filtered->buf_end() - filtered->buf()));
 }
 
@@ -302,7 +303,7 @@ TEST_F(DirectiveFilterTest, EmptyLineAndBackslashLFLFBeforeDirective) {
       DirectiveFilter::MakeFilteredContent(*content));
 
   EXPECT_EQ(
-      "#include <iostream>",
+      "\n\n#include <iostream>",
       std::string(filtered->buf(), filtered->buf_end() - filtered->buf()));
 }
 
@@ -315,7 +316,7 @@ TEST_F(DirectiveFilterTest, EmptyLineAndBackslashCRLFBeforeDirective) {
       DirectiveFilter::MakeFilteredContent(*content));
 
   EXPECT_EQ(
-      "#include <iostream>",
+      "\n#include <iostream>",
       std::string(filtered->buf(), filtered->buf_end() - filtered->buf()));
 }
 
@@ -329,7 +330,7 @@ TEST_F(DirectiveFilterTest, DirectiveIsDividedWithComments) {
       DirectiveFilter::MakeFilteredContent(*content));
 
   EXPECT_EQ(
-      "#include  <iostream>\n",
+      "#include  <iostream>\n\n\n",
       std::string(filtered->buf(), filtered->buf_end() - filtered->buf()));
 }
 
@@ -362,7 +363,8 @@ TEST_F(DirectiveFilterTest, DirectiveContainsComments) {
 
   std::string expected =
       "#include <iostream>  \n"
-      "#endif  \n";
+      "#endif  \n"
+      "\n";
 
   EXPECT_EQ(expected, std::string(filtered->buf(),
                                   filtered->buf_end() - filtered->buf()));
@@ -374,7 +376,7 @@ TEST_F(DirectiveFilterTest, OneLineCommentContainsBlockComment) {
   std::unique_ptr<Content> filtered(
       DirectiveFilter::MakeFilteredContent(*content));
 
-  std::string expected = "#include <iostream>\n";
+  std::string expected = "\n#include <iostream>\n";
 
   EXPECT_EQ(expected, std::string(filtered->buf(),
                                   filtered->buf_end() - filtered->buf()));
@@ -399,7 +401,7 @@ TEST_F(DirectiveFilterTest, IncludePathContainsSlashSlash2) {
   std::unique_ptr<Content> filtered(
       DirectiveFilter::MakeFilteredContent(*content));
 
-  std::string expected = "#include \"foo//bar\"  \n";
+  std::string expected = "#include \"foo//bar\"  \n\n";
 
   EXPECT_EQ(expected, std::string(filtered->buf(),
                                   filtered->buf_end() - filtered->buf()));
@@ -424,7 +426,7 @@ TEST_F(DirectiveFilterTest, StrayDoubleQuotation) {
   std::unique_ptr<Content> filtered(
       DirectiveFilter::MakeFilteredContent(*content));
 
-  std::string expected = "#include <iostream>\n";
+  std::string expected = "\n#include <iostream>\n";
 
   EXPECT_EQ(expected, std::string(filtered->buf(),
                                   filtered->buf_end() - filtered->buf()));
@@ -448,7 +450,7 @@ TEST_F(DirectiveFilterTest, BlockCommentStartInString) {
   std::unique_ptr<Content> filtered(
       DirectiveFilter::MakeFilteredContent(*content));
 
-  std::string expected = "#include <iostream>\n";
+  std::string expected = "\n#include <iostream>\n";
 
   EXPECT_EQ(expected, std::string(filtered->buf(),
                                   filtered->buf_end() - filtered->buf()));
@@ -475,7 +477,7 @@ TEST_F(DirectiveFilterTest, MultipleLineString) {
   std::unique_ptr<Content> filtered(
       DirectiveFilter::MakeFilteredContent(*content));
 
-  std::string expected = "#define HOGE \"HOGE//\\\"hoge\\\"FUGA\"\n";
+  std::string expected = "#define HOGE \"HOGE//\\\"hoge\\\"FUGA\"\n\n\n";
   EXPECT_EQ(expected, std::string(filtered->buf(),
                                   filtered->buf_end() - filtered->buf()));
 }
@@ -489,7 +491,7 @@ TEST_F(DirectiveFilterTest, StringContainingDoubleQuotation) {
   std::unique_ptr<Content> filtered(
       DirectiveFilter::MakeFilteredContent(*content));
 
-  std::string expected = "#define HOGE \"HOGE\\\"//\\\"hoge\\\"FUGA\"\n";
+  std::string expected = "#define HOGE \"HOGE\\\"//\\\"hoge\\\"FUGA\"\n\n\n";
 
   EXPECT_EQ(expected, std::string(filtered->buf(),
                                   filtered->buf_end() - filtered->buf()));
@@ -508,7 +510,7 @@ TEST_F(DirectiveFilterTest, MultipleLineDirectiveAndIdentifier) {
   std::unique_ptr<Content> filtered(
       DirectiveFilter::MakeFilteredContent(*content));
 
-  std::string expected = "#define HOGE";
+  std::string expected = "#define HOGE\n\n\n\n\n\n";
 
   EXPECT_EQ(expected, std::string(filtered->buf(),
                                   filtered->buf_end() - filtered->buf()));
@@ -526,7 +528,7 @@ TEST_F(DirectiveFilterTest, SkipRawStringLiteral) {
   std::unique_ptr<Content> filtered(
       DirectiveFilter::MakeFilteredContent(*content));
 
-  std::string expected = "";
+  std::string expected = "\n\n\n\n";
   EXPECT_EQ(expected, std::string(filtered->buf(),
                                   filtered->buf_end() - filtered->buf()));
 }
@@ -542,6 +544,7 @@ TEST_F(DirectiveFilterTest, HandleConcatOfStringAndValueEndingInR) {
   const std::string expected =
       "#define BAR \"bar\" \n"
       "#define BAZ     BAR\"baz\" \n"
+      "\n"
       "#define FOO(x) x*x\n"
       "#define OK \n";
 

@@ -196,6 +196,7 @@ nobase_include_headers = [
 
 # libprotobuf_lite_la_SOURCES of Makefile.am in protobuf/protobuf/src.
 protobuf_lite_sources = [
+  "protobuf/src/google/protobuf/generated_message_bases.cc",
   "protobuf/src/google/protobuf/port.cc",
   "protobuf/src/google/protobuf/cpp_features.pb.cc",
   "protobuf/src/google/protobuf/any_lite.cc",
@@ -250,6 +251,45 @@ if (os == "win" && !is_win_gcc) {
   ]
 }
 
+static_library("json") {
+  sources = [
+    "protobuf/src/google/protobuf/json/json.cc",
+    "protobuf/src/google/protobuf/json/internal/unparser.cc",
+    "protobuf/src/google/protobuf/json/internal/parser.cc",
+    "protobuf/src/google/protobuf/json/internal/writer.cc",
+    "protobuf/src/google/protobuf/json/internal/lexer.cc",
+#    "protobuf/src/google/protobuf/json/internal/zero_copy_buffered_stream_test.cc",
+#    "protobuf/src/google/protobuf/json/internal/lexer_test.cc",
+    "protobuf/src/google/protobuf/json/internal/zero_copy_buffered_stream.cc",
+    "protobuf/src/google/protobuf/json/internal/untyped_message.cc",
+    "protobuf/src/google/protobuf/json/internal/message_path.cc",
+  ]
+
+  # goma
+  configs -= [ "//build/config/compiler:goma_code" ]
+  configs += [
+    "//third_party/utf8_range:utf8_range_config",
+    "//build/config/compiler:no_goma_code",
+
+    # Must be after no_goma_code for warning flags to be ordered
+    # correctly.
+    ":protobuf_warnings",
+  ]
+
+  if (os == "win") {
+    configs -= [ "//build/config/win:lean_and_mean" ]
+  }
+
+  public_configs = [
+    ":protobuf_config",
+  ]
+
+  deps = [ "//third_party/abseil", "//third_party/utf8_range" ]
+  public_deps = [ "//third_party/abseil", "//third_party/utf8_range" ]
+
+  cflags = protobuf_lite_cflags
+}
+
 static_library("protobuf_lite") {
   sources = protobuf_lite_sources + nobase_include_headers
 
@@ -276,7 +316,8 @@ static_library("protobuf_lite") {
     "//build/config/compiler:no_size_t_to_int_warning",
   ]
 
-  public_deps = [ "//third_party/abseil", "//third_party/utf8_range" ]
+  public_deps = [ "//third_party/abseil", "//third_party/utf8_range", ":json" ]
+  deps = [  ":json" ]
 
   cflags = protobuf_lite_cflags
 }

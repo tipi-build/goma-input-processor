@@ -81,6 +81,7 @@ bool CppTokenizer::TokenizeAll(const std::string& str,
   ArrayTokenList tokens;
   while (true) {
     CppToken token;
+    token.line_in_file = stream.line(); 
     if (!NextTokenFrom(&stream, space_handling, &token, &error_reason)) {
       break;
     }
